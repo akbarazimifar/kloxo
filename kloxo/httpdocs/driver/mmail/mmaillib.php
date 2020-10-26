@@ -29,11 +29,11 @@ class Mmail extends Lxdb
 
 	static $__desc_enable_spf_flag = array("f", "", "enable_SPF");
 	static $__desc_spf_protocol = array("", "", "protocol_version_SPF");
-	static $__desc_text_spf_include = array("t", "", "additional_include_SPF_(one_per_line)");
-	static $__desc_text_spf_redirect = array("t", "", "additional_redirect_SPF_(one_per_line)");
-	static $__desc_text_spf_domain = array("t", "", "additional_domain_SPF_(one_per_line)");
+	static $__desc_text_spf_include = array("t", "", "additional_include_SPF");
+	static $__desc_text_spf_redirect = array("t", "", "additional_redirect_SPF");
+	static $__desc_text_spf_domain = array("t", "", "additional_domain_SPF");
 	static $__desc_enable_spf_autoip = array("f", "", "enable_autoip_SPF");
-	static $__desc_text_spf_ip = array("t", "", "additional_ip_SPF_(one_per_line)");
+	static $__desc_text_spf_ip = array("t", "", "additional_ip_SPF");
 	static $__desc_exclude_all = array("", "", "exclude_all_others_SPF");
 
 	static $__desc_enable_dmarc_flag = array("f", "", "enable_DMARC");
@@ -406,9 +406,9 @@ class Mmail extends Lxdb
 				$vlist['enable_dmarc_flag'] = null;
 				$this->setDefaultValue('dmarc_protocol', 'DMARC1');
 				$vlist['dmarc_protocol'] = null;
-				$this->setDefaultValue('percentage_filtering', '50');
+				$this->setDefaultValue('percentage_filtering', '20');
 				$vlist['percentage_filtering'] = null;
-				$this->setDefaultValue('receiver_policy', 'quarantine');
+				$this->setDefaultValue('receiver_policy', 'none');
 				$vlist['receiver_policy'] = array('s', array('none', 'quarantine', 'reject'));
 			//	$this->setDefaultValue('mail_feedback', "admin@{$this->nname}");
 				$this->setDefaultValue('mail_feedback', "admin@__base__");
@@ -422,7 +422,7 @@ class Mmail extends Lxdb
 			//	$this->fixWebmailRedirect();
 
 				$this->setDefaultValue('webmailprog', '--system-default--');
-				$base = "/home/kloxo/httpd/webmail/";
+			//	$base = "/home/kloxo/httpd/webmail/";
 			//	$list = lscandir_without_dot_or_underscore($base);
 				$nlist[] = '--system-default--';
 				$nlist[] = '--chooser--';
@@ -526,8 +526,8 @@ class Mmail extends Lxdb
 		
 		if ($this->subaction === 'remotelocalmail' || $this->subaction === 'webmail_select') {
 			$web = $this->getParentO()->getObject('web');
-
 			$web->setUpdateSubaction('addondomain');
+			$web->was();
 		}
 	}
 

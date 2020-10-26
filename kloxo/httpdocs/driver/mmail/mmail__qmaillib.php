@@ -80,7 +80,7 @@ class Mmail__Qmail extends lxDriverClass
 	//	lxshell_unzip_with_throw($mailpath, $docd);
 		lxshell_unzip('__system__', $mailpath, $docd);
 
-		lxfile_unix_chown_rec($mailpath, mmail__qmail::getUserGroup($this->main->nname));
+		lxfile_unix_chown_rec($mailpath, self::getUserGroup($this->main->nname));
 
 	}
 
@@ -223,9 +223,9 @@ class Mmail__Qmail extends lxDriverClass
 			exec("sh /script/fix-qmail-assign");
 		}
 
-		$ret = lxshell_return($sys_cmd, '-u', $this->main->systemuser, $this->main->nname, "-b", $password, "-d", $mailpath);
+		$ret2 = lxshell_return($sys_cmd, '-u', $this->main->systemuser, $this->main->nname, "-b", $password, "-d", $mailpath);
 
-		if ($ret) {
+		if ($ret2) {
 			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
 			exec_with_all_closed("sh /script/fixmail-all >/dev/null 2>&1 &");
 		//	throw new lxException($login->getThrow("could_not_add_mail_and_then_try_again"), 'mailpserver', $global_shell_error);
@@ -321,18 +321,25 @@ class Mmail__Qmail extends lxDriverClass
 		$fdata = "| {$sgbl->__path_mail_root}/bin/vdelivermail '' {$catchallstring}\n";
 
 		lfile_put_contents($adminfile, $fdata);
-	//	lfile_write_content($adminfile, $fdata, mmail__qmail::getUserGroup($this->main->nname));
+	//	lfile_write_content($adminfile, $fdata, self::getUserGroup($this->main->nname));
 	}
 
 	function delDomain()
 	{
 		global $gbl, $sgbl, $login, $ghtml;
+
+		$vdeld = "{$sgbl->__path_mail_root}/bin/vdeldomain";
 		
-		lxshell_return("{$sgbl->__path_mail_root}/bin/vdeldomain", "-f","{$this->main->nname}");
-		exec("'rm' -f /var/qmail/control/domainkeys/{$this->main->nname}");
+		lxshell_return($vdeld, "-f","{$this->main->nname}");
+
+		$ddir = "/var/qmail/control/domainkeys/{$this->main->nname}";
+
+		if (file_exists($ddir)) {
+			exec("'rm' -rf {$ddir}");
+		}
 
 		if ($this->doesListExist()) {
-			lxshell_return("{$sgbl->__path_mail_root}/bin/vdeldomain", "lists.{$this->main->nname}");
+			lxshell_return($vdeld, "lists.{$this->main->nname}");
 		}
 	}
 
@@ -401,7 +408,7 @@ class Mmail__Qmail extends lxDriverClass
 			$dir = str_replace($sgbl->__path_mail_root, $sgbl->__path_mail_data, $dir);
 
 			if ($dir && lxfile_exists($dir)) {
-				lxfile_unix_chown_rec($dir, mmail__qmail::getUserGroup($this->main->nname));
+				lxfile_unix_chown_rec($dir, self::getUserGroup($this->main->nname));
 			}
 
 			// MR -- also for lists dir
@@ -411,7 +418,7 @@ class Mmail__Qmail extends lxDriverClass
 			$ldir = $sgbl->__path_mail_data . "/domains/" . $tldir;
 
 			if ($ldir && lxfile_exists($ldir)) {
-				lxfile_unix_chown_rec($ldir, mmail__qmail::getUserGroup($this->main->nname));
+				lxfile_unix_chown_rec($ldir, self::getUserGroup($this->main->nname));
 			}
 		}
 	}

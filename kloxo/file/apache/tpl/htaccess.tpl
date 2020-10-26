@@ -1,5 +1,10 @@
 ### begin content - please not remove this line
 
+#<IfModule mod_rewrite.c>
+#	## MR -- authentically for letsencrypt for webroot-based
+#	RewriteRule /\.|^\.(?!well-known/) - [F]
+#</FilesMatch>
+
 ### MR -- using php version different with default php
 ### 1. Using suphp
 ### - Copy between '#<FilesMatch \.php$>' to '#</FilesMatch>' and 
@@ -7,11 +12,15 @@
 
 #<FilesMatch \.php$>
 	#SetHandler x-httpd-php
-	#SetHandler x-httpd-php52
-	#SetHandler x-httpd-php53
-	#SetHandler x-httpd-php54
-	#SetHandler x-httpd-php55
-	#SetHandler x-httpd-php56
+<?php
+foreach($phpmlist as $k => $v) {
+	$v = str_replace('m', '', $v);
+?>
+	#SetHandler x-httpd-<?=$v;?>
+
+<?php
+}
+?>
 #</FilesMatch>
 
 ### OR
@@ -24,11 +33,13 @@
 #<FilesMatch \.php$>
 #	SetHandler fcgid-script
 #</FilesMatch>
-#FCGIWrapper /home/kloxo/client/php.fcgi .php
-#FCGIWrapper /home/kloxo/client/php52.fcgi .php
-#FCGIWrapper /home/kloxo/client/php53.fcgi .php
-#FCGIWrapper /home/kloxo/client/php54.fcgi .php
-#FCGIWrapper /home/kloxo/client/php55.fcgi .php
-#FCGIWrapper /home/kloxo/client/php56.fcgi .php
+#FCGIWrapper /usr/bin/php-cgi .php
+<?php
+foreach($phpmlist as $k => $v) {
+?>
+#FCGIWrapper /usr/bin/<?=$v;?>-cgi .php
+<?php
+}
+?>
 
 ### end content - please not remove this line

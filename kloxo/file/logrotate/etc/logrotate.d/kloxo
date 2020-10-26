@@ -1,4 +1,3 @@
-#
 # Kloxo LogRotate
 # Initial version
 # Needs cleanup
@@ -9,47 +8,22 @@
 #
 # add and modified by Mustafa Ramadhan <mustafa.ramadhan@lxcenter.org>
 
-/var/log/qmail/*/current {
+/home/httpd/*/stats/*_log
+/home/*/__processed_stats/*_log
+## MR -- disable for kloxo because using fixlogdir in scavenge
+#/usr/local/lxlabs/kloxo/log/*
+#/usr/local/lxlabs/kloxo/processed_log/*
+{
     daily
-    rotate 30
-    create
-    compress
-    notifempty
-    missingok
-}
-
-/home/httpd/*/stats/*_log {
-    daily
-    rotate 30
     #create 0664 apache apache
+    #rotate 52
     compress
+    delaycompress
     notifempty
     missingok
-}
-
-/home/*/__processed_stats/*_log {
-    daily
-    rotate 30
-    #create 0750 root root
-    compress
-    notifempty
-    missingok
-}
-
-/usr/local/lxlabs/kloxo/log/* {
-    daily
-    rotate 30
-    #create 0664 lxlabs lxlabs
-    compress
-    notifempty
-    missingok
-}
-
-/home/*/logs/*.log {
-    daily
-    rotate 30
-    #create 0664 apache apache
-    compress
-    notifempty
-    missingok
+    sharedscripts
+    postrotate
+        sh /script/restart-web -y >/dev/null 2>&1 || true
+        sh /script/restart -y >/dev/null 2>&1 || true
+    endscript
 }

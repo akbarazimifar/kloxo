@@ -111,7 +111,8 @@ function os_set_quota($username, $disk, $inode = null)
 		}
 
 		$perblock = getFSBlockSizeInKb();
-		$totalblock = $disk / $perblock;
+	//	$totalblock = $disk / $perblock;
+		$totalblock = $disk;
 	}
 
 	lxshell_return("setquota", "-u", $username, $totalblock, $totalblock, $totalinode, $totalinode, "-a");
@@ -174,7 +175,7 @@ function getIPs_from_ipaddr($withV6 = true)
 		}
 	}
 
-	return array_values($a);
+	return array_values(array_unique($a));
 }
 
 // Bug #797 - Failed identify ip on apache
@@ -201,7 +202,8 @@ function getIPs_from_ifcfg()
 					if ($ip === '127.0.0.1') { 
 						continue;
 					} else {
-						$r[] = trim($i[1]);
+					//	$r[] = trim($i[1]);
+					$r[] = preg_replace('/[^0-9\.]/', '', trim($i[1]));
 					}
 				}
 			}
@@ -235,6 +237,9 @@ function os_create_default_slave_driver_db()
 	$a['web'] = "apache";
 	$a['webcache'] = "none";
 	$a['dns'] = "bind";
+	$a['pop3'] = "courier";
+//	$a['imap4'] = "courier";
+	$a['smtp'] = "qmail";
 	$a['spam'] = "bogofilter";
 	slave_save_db("driver", $a);
 }
@@ -292,17 +297,33 @@ function os_create_system_user($basename, $password, $id, $shell, $dir = "/tmp")
 
 function os_service_manage($serv, $act)
 {
-	exec_with_all_closed("/etc/init.d/$serv $act");
+	exec_with_all_closed("service {$serv} {$act}");
 }
 
 function os_create_program_service()
 {
-	global $gbl, $sgbl, $login, $ghtml; 
+	global $gbl, $sgbl, $login, $ghtml;
+
 	$pgm = $sgbl->__var_program_name;
 
-	$pgminit = "__path_program_root/init/$pgm.init";
-	
-	lxfile_unix_chmod("/etc/init.d/$pgm", "0755");
+	$a = array('web', 'php', 'wrap');
+
+	if (getServiceType() === 'systemd') {
+		foreach ($a as $k => $v) {
+			lxfile_cp("{$sgbl->__path_program_root}/init/{$pgm}-{$v}.service", "/usr/lib/systemd/system/{$pgm}-{$v}.service");
+			lxfile_unix_chmod("/usr/lib/systemd/system/{$pgm}-{$v}.service", "0644");
+			exec("systemctl enable {$pgm}-{$v} >/dev/null 2>&1");
+		}
+
+		exec("systemctl daemon-reload");
+
+	} else {
+		foreach ($a as $k => $v) {
+			lxfile_cp("{$sgbl->__path_program_root}/init/{$pgm}-{$v}.init", "/etc/rc.d/init.d/{$pgm}-{$v}");
+			lxfile_unix_chmod("/etc/rc.d/init.d/{$pgm}-{$v}", "0755");
+			exec("chkconfig {$pgm}-{$v} on  >/dev/null 2>&1");
+		}
+	}
 }
 
 function os_is_arch_sixfour()

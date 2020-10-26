@@ -59,6 +59,10 @@ class Client extends ClientBase
 
 	static $__desc_dnsslave_l = array("", "", "");
 
+	static $__desc_all_sslcert_l = array("", "", "");
+
+	static $__desc_sendmailban_l = array("", "", "");
+
 	function isSync()
 	{
 		if ($this->subaction === 'boxpos') {
@@ -214,18 +218,23 @@ class Client extends ClientBase
 		
 		if (!$this->isAdmin()) {
 			if ($this->isLogin()) {
-				$ilist['Resource Plan'] = $resource;
+			//	$ilist['Resource Plan'] = $resource;
+				$ilist[$login->getKeywordUc('info_resourceplan')] = $resource;
 			} else {
-				$ilist['Resource Plan'] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
+			//	$ilist['Resource Plan'] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
+				$ilist[$login->getKeywordUc('info_resourceplan')] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
 			}
 		}
 
 		if ($this->priv->isOn('webhosting_flag')) {
 			$url = "a=show&l[class]=ffile&l[nname]=/";
-			$ilist['Home'] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
-			$ilist['Username'] = "_lxspan:{$this->username}:{$this->username}:";
+		//	$ilist['Home'] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
+			$ilist[$login->getKeywordUc('info_home')] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
+		//	$ilist['Username'] = "_lxspan:{$this->username}:{$this->username}:";
+			$ilist[$login->getKeywordUc('info_username')] = "_lxspan:{$this->username}:{$this->username}:";
 			$url = "&a=updateform&sa=default_domain";
-			$ilist['Default Domain'] = "_lxinurl:{$url}:{$this->default_domain}:";
+		//	$ilist['Default Domain'] = "_lxinurl:{$url}:{$this->default_domain}:";
+			$ilist[$login->getKeywordUc('info_defaultdomain')] = "_lxinurl:{$url}:{$this->default_domain}:";
 		}
 		
 		$this->getLastLogin($ilist);
@@ -233,7 +242,8 @@ class Client extends ClientBase
 		$skin = $this->getSpecialObject('sp_specialplay')->skin_name;
 		$skin = ucfirst($skin);
 		$url = "o=sp_specialplay&a=updateform&sa=skin";
-		$ilist['Skin'] = "_lxinurl:$url:$skin:";
+	//	$ilist['Skin'] = "_lxinurl:$url:$skin:";
+		$ilist[$login->getKeywordUc('info_skin')] = "_lxinurl:$url:$skin:";
 
 		if ($this->isNotCustomer()) {
 			return $ilist;
@@ -301,14 +311,14 @@ class Client extends ClientBase
 
 	function createDefaultApplication($dname, $appname)
 	{
-		$p['class'] = 'installapp';
+		$p['class'] = 'easyinstaller';
 		$p['parent-class'] = "web";
 		$p['parent-name'] = $dname;
 		$p['v-appname'] = $appname;
 		$p['v-installdir'] = null;
-		$p['v-installappmisc_b_s_admin_email'] = $this->contactemail;
-		$p['v-installappmisc_b_s_admin_name'] = 'admin';
-		$p['v-installappmisc_b_s_admin_password'] = 'admin';
+		$p['v-easyinstallermisc_b_s_admin_email'] = $this->contactemail;
+		$p['v-easyinstallermisc_b_s_admin_name'] = 'admin';
+		$p['v-easyinstallermisc_b_s_admin_password'] = 'admin';
 		
 		try {
 			__cmd_desc_add($p, null);
@@ -339,7 +349,7 @@ class Client extends ClientBase
 
 	function getMysqlDbAdmin(&$alist)
 	{
-	//	$flagfile = "/usr/local/lxlabs/kloxo/etc/flag/user_sql_manager.flg";
+	//	$flagfile = "../etc/flag/user_sql_manager.flg";
 
 	//	if (file_exists($flagfile)) {
 	//		$url = file_get_contents($flagfile);
@@ -437,12 +447,13 @@ class Client extends ClientBase
 
 		$alist['__v_dialog_info'] = "a=updateform&sa=information";
 
-	
 		if ($this->priv->isOn('webhosting_flag')) {
 			if ($this->priv->isOn('cron_manage_flag') && $this->isCustomer()) {
-				if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg")) {
+				if (file_exists("../etc/flag/enablecronforall.flg")) {
 					$alist[] = "a=list&c=cron";
 				}
+		//	} else {
+		//		$alist[] = "a=list&c=cron";
 			}
 		}
 
@@ -453,12 +464,12 @@ class Client extends ClientBase
 
 		// MR -- don't care vps or dedi, reversedns always appear
 		// just need 'message box' warning
-		//	if ($this->isAdmin() && !lxfile_exists("/proc/user_beancounters") && !lxfile_exists("/proc/xen")) {
-		/*
-			if ($this->isAdmin()) {
-				$alist[] = "a=list&c=reversedns";
-			}
-		*/
+	//	if ($this->isAdmin() && !lxfile_exists("/proc/user_beancounters") && !lxfile_exists("/proc/xen")) {
+	/*
+		if ($this->isAdmin()) {
+			$alist[] = "a=list&c=reversedns";
+		}
+	*/
 
 		if (!$this->isAdmin()) {
 			if (!$this->isLogin()) {
@@ -486,14 +497,15 @@ class Client extends ClientBase
 
 
 		$alist[] = "a=show&o=phpini";
+		$alist[] = "a=updateform&sa=extraedit&o=phpini";
 
 		$alist[] = "a=updateform&sa=update&o=domaindefault";
 		$alist[] = "a=list&c=auxiliary";
 
 		$alist[] = "a=list&c=utmp";
-		if ($login->isAdmin()) {
+	//	if ($login->isAdmin()) {
 			$alist['__v_dialog_shell'] = "a=updateform&sa=shell_access";
-		}
+	//	}
 
 		if (check_if_many_server()) {
 			if (!$this->isLogin() && !$this->isAdmin()) {
@@ -531,19 +543,19 @@ class Client extends ClientBase
 
 			$alist[] = "a=list&c=ipaddress";
 			
-			if ($this->getList('ipaddress')) {
+		//	if ($this->getList('ipaddress')) {
 				$alist[] = "a=list&c=sslcert";
-			}
+		//	}
 
 			if ($this->isCustomer()) {
-				$alist[] = "a=list&c=ftpuser";
+			//	$alist[] = "a=list&c=ftpuser";
 				$alist[] = 'a=list&c=ftpsession';
-				$alist[] = "a=show&l[class]=ffile&l[nname]=/";
-				$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
+			//	$alist[] = "a=show&l[class]=ffile&l[nname]=/";
+			//	$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
 				$alist[] = "a=show&o=sshclient";
-				$alist[] = "a=list&c=traceroute";
-				$this->getListActions($alist, 'mysqldb');
-				$this->getMysqlDbAdmin($alist);
+			//	$alist[] = "a=list&c=traceroute";
+			//	$this->getListActions($alist, 'mysqldb');
+			//	$this->getMysqlDbAdmin($alist);
 			}
 			
 			if ($login->priv->isOn('domain_add_flag')) {
@@ -551,7 +563,7 @@ class Client extends ClientBase
 			}
 		}
 
-		if ($this->isNotCustomer()) {
+	//	if ($this->isNotCustomer()) {
 			$alist['__title_domain_rec'] = $login->getKeywordUc('domain');
 			$alist[] = "a=list&c=ftpuser";
 			$this->getListActions($alist, 'mysqldb');
@@ -559,21 +571,21 @@ class Client extends ClientBase
 			$alist[] = "a=show&l[class]=ffile&l[nname]=/";
 			$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
 
-			if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg")) {
+			if (file_exists("../etc/flag/enablecronforall.flg")) {
 				$alist[] = "a=list&c=cron";
 			}
 
 			$alist[] = "a=list&c=traceroute";
-		}
+	//	}
 
 		if (!$this->isAdmin() && !$this->isDisabled("shell")) {
 			$alist[] = "a=list&c=sshauthorizedkey";
 		}
-
+	/*
 		if ($this->isCustomer()) {
 			$this->getDomainAlist($alist);
 		}
-
+	*/
 		if ($this->isAdmin()) {
 			if ($this->isDomainOwnerMode()) {
 				$this->getDomainAlist($alist);
@@ -581,10 +593,13 @@ class Client extends ClientBase
 				$so = $this->getFromList('pserver', 'localhost');
 				$this->getAlistFromChild($so, $alist);
 			}
+	/*
 		} else {
+
 			if ($this->isLte('reseller') && $this->isDomainOwnerMode()) {
 				$this->getDomainAlist($alist);
 			}
+	*/
 		}
 
 		$alist['__title_advanced'] = $login->getKeywordUc('advanced');
@@ -645,9 +660,9 @@ class Client extends ClientBase
 		$alist[] = "a=list&c=blockedip";
 		$alist[] = "a=show&o=notification";
 
-		if (!$this->isLogin()) {
+	//	if (!$this->isLogin()) {
 			$alist['__v_dialog_disa'] = "a=updateform&sa=disable_per";
-		}
+	//	}
 
 		// temporary, only for admin
 		if ($this->isAdmin()) {
@@ -672,6 +687,8 @@ class Client extends ClientBase
 		}
 
 		$alist[] = "a=list&c=dnsslave";
+
+		$alist[] = "a=list&c=sendmailban";
 
 		$this->getCustomButton($alist);
 

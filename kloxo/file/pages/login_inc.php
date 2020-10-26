@@ -13,6 +13,8 @@ $cgi_password = $ghtml->frm_password;
 $cgi_forgotpwd = $ghtml->frm_forgotpwd;
 $cgi_email = $ghtml->frm_email;
 
+$cgi_token = $ghtml->frm_token;
+
 $cgi_classname = 'client';
 
 if ($cgi_class) {
@@ -32,9 +34,79 @@ $logfo = db_get_value("general", "admin", "login_pre");
 $logfo = str_replace("<%programname%>", $sgbl->__var_program_name, $logfo);
 
 if (!$cgi_forgotpwd) {
+//	if (session_status() == PHP_SESSION_NONE) {
+	if(!isset($_SESSION)) {
+		session_start();
+	}
+
 	$ghtml->print_message();
+
+	$_SESSION['frm_token'] = mt_rand();
 ?>
 <!--- include start --->
+
+<?php
+
+	if ((isset($_SESSION['last_login_time'])) && (isset($_SESSION['num_login_fail']))) {
+		$t = time();
+		$s = $_SESSION['last_login_time'];
+		$d = $t - $s;
+		$n = $_SESSION['num_login_fail'];
+
+		$m = $g_language_mes->__emessage['blocked'];
+		$r = $g_language_mes->__emessage['blocked_remaining'];
+
+		if ($n == 5) {
+			if (intval($t - $s) < intval(10*60)) {
+				$msg = '
+<div style="margin: 4px auto; width: 450px; padding: 4px; color: #000; background-color: #fdb; border: 1px solid #ccc">
+<div id="countdown" align="center"></div>
+<script>
+	var countdown = document.getElementById("countdown");
+	//var totalTime = 600;
+	var totalTime = ' . intval(600 - $d) . ';
+	function pad(n) {
+		return n > 9 ? "" + n : "0" + n;
+	}
+	var original = totalTime;
+	function padMinute(n) {
+		return original >= 600 && n <= 9 ? "0" + n : "" + n;
+	}
+	var interval = setInterval(function() {
+		updateTime();
+		if(totalTime == -1) {
+			clearInterval(interval);
+		//	return;
+		//	self.location = self.location.href;
+			self.location = "/login/";
+		}
+	}, 1000);
+
+	function displayTime() {
+		var minutes = Math.floor(totalTime / 60);
+		var seconds = totalTime % 60;
+		minutes = "<span>" + padMinute(minutes).split("").join("</span><span>") + "</span>";
+		seconds = "<span>" + pad(seconds).split("").join("</span><span>") + "</span>";
+	//	countdown.innerHTML = "Blocked remaining: " + minutes + ":" + seconds;
+		countdown.innerHTML = "' . $m . ' ' . $r . ': " + minutes + ":" + seconds;
+	}
+	function updateTime() {
+		displayTime();
+		totalTime--;
+	}
+	updateTime();
+</script>
+</div>';
+			} else {
+				$_SESSION['num_login_fail'] = 0 ;
+			}
+		} else {
+			$_SESSION['last_login_time'] = time();
+		}
+	} else {
+		$msg="";
+	}
+?>
 
 <div align="center">
 	<div class="login">
@@ -50,7 +122,7 @@ if (!$cgi_forgotpwd) {
  		 		<div class="inputlabel">Password</div>
 	 		 		<input name="frm_password" type="password" class="passbox" size="30"/>
  			 		<br/>
-	 		 		<input type="hidden" name="id" value="<?php echo mt_rand() ?>"/>
+	 		 		<input type="hidden" name="frm_token" value="<?php echo $_SESSION['frm_token']; ?>"/>
 	 		 		<div align="left"><input type="submit" class="button" name="login" value="Login"/></div>
 				</div>
 		 	 </form>
@@ -70,6 +142,8 @@ if (!$cgi_forgotpwd) {
 		<div class="clr"></div>
 	</div>
 	<div style="margin: 4px auto; width: 200px; padding: 4px; color: #fff; background-color: #000">Kloxo-MR <?php echo $kloxo_mr_version ?></div>
+<?php echo $msg;?>
+
 </div>
 
 <div id="break"></div>
@@ -145,7 +219,7 @@ if (!$cgi_forgotpwd) {
 
 		if ($email && $cgi_email == $email[0]['contactemail']) {
 			$rndstring = randomString(8);
-			$pass = crypt($rndstring);
+			$pass = crypt($rndstring, '$1$'.randomString(8).'$');
 
 			$rawdb->rawQuery("update $tablename set password = '$pass' where nname = '$cgi_clientname'");
 			$mailto = $email[0]['contactemail'];

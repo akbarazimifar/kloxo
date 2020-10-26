@@ -1,6 +1,6 @@
 <?php
 
-// MR -- add quote (') in value may make trouble to popup appear
+// MR -- add quote (') in value may make trouble to popup appear (throw); use * (star)
 
 $__keyword["under"] = "Under";
 $__keyword["filtered"] = "Filtered";
@@ -176,7 +176,23 @@ $__keyword["ownership_group"] = "Group";
 $__keyword["ownership_recursively"] = "Change Ownership Recursively";
 $__keyword["ownership_confirm"] = "Do You Really want to set this ownership Recursively?";
 
+$__keyword["info_lastloginip"] = "Last Login IP";
+$__keyword["info_currentloginip"] = "Current Login IP";
+$__keyword["info_lastlogintime"] = "Last Login Time";
+$__keyword["info_defaultdomain"] = "Default Domain";
+$__keyword["info_username"] = "Username";
+$__keyword["info_home"] = $__keyword["home"];
+$__keyword["info_resourceplan"] = $__keyword["resourceplan"];
+$__keyword["info_skin"] = "Skin";
+
 $__keyword["click_help"] = "Click 'Help' for more info";
+$__keyword["login_as"] = "Login as";
+
+$__keyword['startapi_warning'] = "StartAPI: 'issue' is free but 're-issue' (before expire) and 'revoke' may payed";
+
+$__keyword['upload_overwrite_warning'] = "WARNING: Existing file will be overwritten by uploaded file";
+
+$__keyword['panel_update_warning'] = "Update process including rpm (package) update and then run cleanup. This takes quite a long time";
 
 $__throw["domain_is_already_owned"] = "Domain is already owned. Please enable: [b]I Confirm That I Am The Owner Of Domain[/b]";
 $__throw["invalid_domain_name"] = "Invalid domain name";
@@ -196,6 +212,7 @@ $__throw["could_not_create_tmp_dir"] = "Could not create TMP dir";
 $__throw["corrupted_file"] = "Corrupted File";
 $__throw["need"] = "Need";
 $__throw["could_not_connect_to_ftp_server"] = "Could not connect to FTP server";
+$__throw["could_not_connect_to_server"] = "Could not connect to server";
 $__throw["file_download_failed"] = "File download failed";
 $__throw["install_failed"] = "Install failed";
 $__throw["remove_failed"] = "Remove failed";
@@ -204,6 +221,8 @@ $__throw["replace_failed"] = "Replace failed";
 $__throw["invalid_client_name"] = "Invalid client name";
 $__throw["invalid_database_name"] = "Invalid database name";
 $__throw["invalid_password"] = "Password is too simple or contains invalid characters";
+
+$__throw["invalid_plan_name"] = "Invalid plan name";
 
 $__throw["more_than_128_chars"] = "More than 128 chars";
 $__throw["more_than_255_chars"] = "More than 255 chars";
@@ -247,7 +266,7 @@ $__throw["skeleton_should_be_zip"] = "Skeleton should be zip";
 $__throw["message_sent"] = "Message sent";
 $__throw["no_contact_email"] = "No contact email";
 $__throw["resource_quota_more_than_available"] = "Resource quota more than available";
-$__throw["installapp_needs_valid_contactemail"] = "Installapp needs valid contactemail";
+$__throw["easyinstaller_needs_valid_contactemail"] = "Needs valid contactemail";
 // $__throw["type_of_adding_more_than_parent"] = "Type of adding more than parent";
 $__throw["client_type_more_than_parent"] = "Client type more than parent";
 $__throw["use_double_underscore"] = "Use double underscore";
@@ -287,7 +306,7 @@ $__throw["no_root_dir_specified"] = "No root dir specified";
 
 $__throw["domain_already_exists_as_virtual"] = "Domain_already_exists_as_virtual";
 
-$__throw["no_dns_template"] = "No DNS template";
+$__throw["no_dns_template"] = "No DNS template. Go to [b]DNS Templates[/b]";
 
 $__throw["webserver_not_same"] = "Webserver not same";
 $__throw["mailserver_not_same"] = "Mailserver not same";
@@ -396,9 +415,12 @@ $__throw["invalid_server_alias"] = "Invalid server alias";
 $__throw["se_submit_running_background"] = "Se submit running background";
 $__throw["no_ip_pool_in_parent"] = "No IP pool in parent";
 $__throw["secondary_php_not_work_for"] = "Secondary PHP not work for";
-$__throw["only_work_for_php-type_for_php-fpm"] = "Only work for PHP-Type for php-fpm";
+$__throw["only_work_for_php-type_for_php-fpm_or_proxy_fcgi"] = "Only work for PHP-Type for php-fpm or proxy_fcgi";
 $__throw["other_install_process_still_running"] = "Other install process still running";
 $__throw["install_process_running_in_background"] = "Install process running in background";
+$__throw["php_already_in_used"] = "Already use by *PHP Used*";
+
+$__throw["no_options_selected"] = "No options selected";
 
 $__throw["path_already_exists"] = "Path already exists";
 $__throw["can_not_access_application_directory"] = "Can not access application directory";
@@ -512,3 +534,4 @@ $__throw["program_is_already_updating"] = "Program is already updating";
 
 $__throw["need_a_or_aaa_record"] = "Need A or AAA record declared";
 
+$__throw["create_certificate_failed"] = "Create Certificate failed";

@@ -37,9 +37,15 @@ class Llog extends Lxclass {
 
 	function getFfileFromVirtualList($name)
 	{
-		$name = coreFfile::getRealpath($name);
-		$name = '/' . $name;
-		$ffile= new Ffile($this->__masterserver, $this->__readserver, "__path_log", $name, $this->getParentO()->username);
+		global $sgbl;
+
+		if (substr($name, 0, 1) !== '/') {
+		//	$name = coreFfile::getRealpath($name);
+			$name = '/var/log/' . $name;
+		}
+
+		$ffile= new Ffile($this->__masterserver, $this->__readserver, "/", $name, $this->getParentO()->username);
+
 		$ffile->__parent_o = $this;
 		$ffile->get();
 		$ffile->readonly = 'on';
@@ -50,6 +56,16 @@ class Llog extends Lxclass {
 
 	function createShowSclist()
 	{
+		$phplist = getMultiplePhpList();
+
+		$phploglist = array('php-error.log' => 'php error');
+		$phpfpmloglist = array('php-fpm/php-error.log' => 'php-fpm error');
+
+		foreach ($phplist as $k => $v) {
+			$phploglist["{$v}-error.log"] = "{$v} error";
+			$phpfpmloglist["php-fpm/{$v}-error.log"] = "{$v}-fpm error"; 
+		}
+
 		// MR -- only list maillog for mail because change multilog to splogger for qmail-toaster
 		$sclist['ffile'] = array(
 			'audit/audit.log' => 'Audit',
@@ -60,13 +76,15 @@ class Llog extends Lxclass {
 
 			'secure' => 'Secure',
 
-			'clamav/clamd.log' => 'Clamd',
-			'clamav/freshclam.log' => 'Freshclam',
+			'freshclam.log' => 'Freshclam',
+
+			'letsencrypt/letsencrypt.log' => 'Letsencrypt (certbot)',
+			'acme.sh/acme.sh.log' => 'Letsencrypt (acme.sh)',
 
 			'maillog' => 'Mail log',
 
-			'httpd/access_log' => 'HTTP Access',
-			'httpd/error_log' => 'HTTP Error',
+			'httpd/access_log' => 'Apache Access',
+			'httpd/error_log' => 'Apache Error',
 
 			'lighttpd/access.log' => 'Lighttpd Access',
 			'lighttpd/error.log' => 'Lighttpd Error',
@@ -84,19 +102,27 @@ class Llog extends Lxclass {
 			'djbdns.log' => 'DJBDns',
 			'nsd.log' => 'NSD',
 			'pdns.log' => 'PowerDNS',
-			'yadifa/' => 'Yadifa',
+			'yadifa/yadifa.log' => 'Yadifa',
 
-			'php-error.log' => 'PHP Error',
-			'php-fpm/error.log' => 'PHP-FPM Error',
-			'php-fpm/slow.log' => 'PHP-FPM Slow',
-
-			'mysqld.log' => 'MySQL',
+			'/var/lib/mysql/mysql-slow.log' => 'MySQL Slow (MariaDB)',
+			'/var/lib/mysql/' . gethostname() . '.err' => 'MySQL Error (MariaDB)',
+			'mysqld.log' => 'MySQL Log (MySQL)',
 
 			'pureftpd.log' => 'Pure-ftp',
 
 			'rkhunter/rkhunter.log' => 'RKHunter',
+			'/usr/local/maldetect/logs/event_log' => 'MalDetect',
+			'httpry/httpry.log' => 'Httpry',
+			'/var/ossec/logs/alerts/alerts.log' => 'OSSec',
 
-			'yum.log' => 'Yum');
+			'/usr/local/lxlabs/kloxo/log/backup' => 'Backup',
+			'/usr/local/lxlabs/kloxo/log/restore' => 'Restore',
+
+			'yum.log' => 'Yum',
+
+			'php-fpm/slow.log' => 'php-fpm slow (all)');
+
+		$sclist['ffile'] = array_merge($sclist['ffile'], $phpfpmloglist, $phploglist);
 
 		return $sclist;
 	}

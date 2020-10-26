@@ -4,10 +4,13 @@ class pserver extends pservercore {
 
 	static $__desc_mailqueue_l = array('', '', '', '');
 	static $__desc_clientmail_l = array('', '', '', '');
-	static $__desc_web_driver = array('', '', 'web', '');
-	static $__desc_webcache_driver = array('', '', 'webcache', '');
-	static $__desc_dns_driver = array('', '', 'dns', '');
-	static $__desc_spam_driver = array('', '', 'spam', '');
+	static $__desc_web_driver = array('', '', 'web_driver', '');
+	static $__desc_webcache_driver = array('', '', 'webcache_driver', '');
+	static $__desc_dns_driver = array('', '', 'dns_driver', '');
+	static $__desc_pop3_driver = array('', '', 'pop3_driver', '');
+//	static $__desc_imap4_driver = array('', '', 'pop3_driver', '');
+	static $__desc_smtp_driver = array('', '', 'smtp_driver', '');
+	static $__desc_spam_driver = array('', '', 'spam_driver', '');
 	static $__acdesc_update_switchprogram = array('', '', 'switch_program', '');
 	static $__acdesc_update_mailqueuedelete = array('', '', 'delete', '');
 	static $__acdesc_update_mailqueueflush = array('', '', 'flush', '');
@@ -16,6 +19,7 @@ class pserver extends pservercore {
 	static $__desc_phpini_o = array("db", "", "");
 	static $__desc_serverweb_o = array("db", "", "");
 	static $__desc_lxguard_o = array("db", "", "");
+	static $__desc_phpmodule_l = array("", "", "");
 
 	Function display($var)
 	{
@@ -39,19 +43,58 @@ class pserver extends pservercore {
 		global $gbl, $sgbl, $login, $ghtml;
 
 		// MR -- change and add nofixconfig
-
+	/*
+		// MR -- trick if using setdriver script
+		if ($param['imap4_driver']) {
+			$param['pop3_driver'] = $param['imap4_driver'];
+			unset($param['imap4_driver']);
+		}
+	*/
 		$a['web'] = $param['web_driver'];
 		$a['webcache'] = $param['webcache_driver'];
 		$a['dns'] = $param['dns_driver'];
 		$a['spam'] = $param['spam_driver'];
+		$a['pop3'] = $param['pop3_driver'];
+		$a['smtp'] = $param['smtp_driver'];
 
-		$nofixconfig = $param['no_fix_config'];
-		$useapache24 = $param['use_apache24'];
+	//	$nofixconfig = $param['no_fix_config'];
 
-		if ($useapache24 === 'on') {
-			exec("echo '' > /usr/local/lxlabs/kloxo/etc/flag/use_apache24.flg");
+		$httpd24flag = "../etc/flag/use_apache24.flg";
+
+		if (file_exists($httpd24flag)) {
+			$current_useapache24 = 'on';
 		} else {
-			exec("'rm' -f /usr/local/lxlabs/kloxo/etc/flag/use_apache24.flg");
+			$current_useapache24 = 'off';
+		}
+
+		// MR -- get httpd24u info
+		exec("cat '../etc/list/httpd.lst'|grep httpd24", $out);
+
+		if ($out[0] !== null) {
+			$next_useapache24 = $param['use_apache24'];
+
+			if ($next_useapache24 === 'on') {
+				exec("echo '' > {$httpd24flag}");
+			} else {
+				exec("'rm' -f {$httpd24flag}");
+			}
+		} else {
+			$next_useapache24 = 'off';
+
+			if (file_exists($httpd24flag)) {
+				exec("'rm' -f {$httpd24flag}");
+			}
+		}
+
+		$pagespeedflag = "../etc/flag/use_pagespeed.flg";
+		$usepagespeed = $param['use_pagespeed'];
+
+		if ($usepagespeed === 'on') {
+			exec("echo '' > {$pagespeedflag}");
+			setAllWebServerInstall();
+		} else {
+			exec("'rm' -f {$pagespeedflag}");
+			setAllWebServerInstall();
 		}
 
 		// MR -- add 'pserver' on slavedb - read current server enough from slave_get_db
@@ -59,55 +102,56 @@ class pserver extends pservercore {
 	//	rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
 
 		foreach($param as $k => $v) {
-			if (($k === 'no_fix_config') || ($k === 'use_apache24')) { continue; }
+		//	if ($k === 'no_fix_config') { continue; }
+			if ($k === 'use_apache24') { continue; }
+
+			$class = strtilfirst($k, "_");
+			$drstring = "{$class}_driver";
+
+		//	if (($class === 'web') && (isWebProxyOrApache())) {
+			if ($class === 'web') {
+				if ($current_useapache24 !== $next_useapache24) {
+					dprint("Change 'Use Apache24' from '{$current_useapache24}' to '{$next_useapache24}'\n");
+					rl_exec_get(null, $this->nname, array($class, 'switchDriver'), array($class, $v, $v));
+				}
+			}
 
 			if ($this->$k === $v) {
 				dprint("No change for $k: $v\n");
 			} else {
-				$t = str_replace("proxy", "", $v);
+				dprint("Change for $k: $v\n");
 
-				if ((!file_exists("{$sgbl->__path_program_root}/file/{$t}")) && ($k !== 'spam_driver') && ($t !== 'none')) {
-					throw new lxException($login->getThrow("not_ready_to_use"), '', $v);
-				} else {
-					dprint("Change for $k: $v\n");
+				rl_exec_get(null, $this->nname, array($class, 'switchDriver'), array($class, $this->$drstring, $v));
 
-					$class = strtilfirst($k, "_");
-					$drstring = "{$class}_driver";
+				changeDriver($this->nname, $class, $v);
 
-					rl_exec_get(null, $this->nname, array($class, 'switchDriver'), array($class, $this->$drstring, $v));
+				$fixc = $class;
 
-					changeDriver($this->nname, $class, $v);
+			//	if (($class === 'spam') || ($class === 'pop3') || ($class === 'imap4') || ($class === 'smtp')) {
+				if (($class === 'spam') || ($class === 'pop3') || ($class === 'smtp')) {
+					$fixc = "mmail";
+				}
 
-					$fixc = $class;
+				$a[$class] = $v;
+				rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
 
-					if ($class === 'spam') { $fixc = "mmail"; }
+			//	if ($nofixconfig === 'on') { continue; }
 
-					$a[$class] = $v;
-					rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
+			//	lxshell_return("sh", "/script/fix{$fixc}", "--target=defaults", "--server={$this->nname}", "--nolog");
+				exec("sh /script/fix{$fixc} --target=defaults --server={$this->nname} --nolog");
 
-					if ($nofixconfig === 'on') { continue; }
+				// MR -- original code not work, so change to, also must be the last process!
+				if ($fixc === 'web') {
+					if (isWebProxyOrApache()) {
+						$php_type = db_get_value("serverweb", "pserver-" . $this->nname, "php_type");
 
-					// MR -- original code not work, so change to, also must be the last process!
-					if ($fixc === 'webcache') {
-						lxshell_return("sh", "/script/fixweb", "--target=defaults", "--server={$this->nname}", "--nolog");
-					} elseif ($fixc === 'web') {
-						lxshell_return("sh", "/script/fix{$fixc}", "--target=defaults", "--server={$this->nname}", "--nolog");
-
-						if (isWebProxyOrApache()) {
-							$php_type = db_get_value("serverweb", "pserver-" . $this->nname, "php_type");
-
-							if (stripos($php_type, 'php-fpm') !== false) {
-								exec("chkconfig php-fpm on");
-							} else {
-								exec("chkconfig php-fpm off");
-							}
+						if (stripos($php_type, 'php-fpm') !== false) {
+							exec("chkconfig php-fpm on >/dev/null 2>&1");
 						} else {
-							exec("chkconfig php-fpm on");
+							exec("chkconfig php-fpm off >/dev/null 2>&1");
 						}
-				//	} elseif ($fixc === 'dns') {
-				//		// no action
 					} else {
-						lxshell_return("sh", "/script/fix{$fixc}", "--target=defaults", "--server={$this->nname}", "--nolog");
+						exec("chkconfig php-fpm on >/dev/null 2>&1");
 					}
 				}
 			}
@@ -196,7 +240,7 @@ class pserver extends pservercore {
 
 	function getMysqlDbAdmin(&$alist)
 	{
-	//	$flagfile = "/usr/local/lxlabs/kloxo/etc/flag/user_sql_manager.flg";
+	//	$flagfile = "../etc/flag/user_sql_manager.flg";
 
 	//	if (file_exists($flagfile)) {
 	//		$url = file_get_contents($flagfile);
@@ -238,7 +282,6 @@ class pserver extends pservercore {
 			$dbad = $this->getFromList('dbadmin', "mysql___{$this->syncserver}");
 			$user = $dbad->dbadmin_name;
 			$pass = $dbad->dbpassword;
-		//	$pass = crypt($dbad->dbpassword);
 
 			if (if_demo()) {
 				$pass = "demopass";
@@ -257,7 +300,7 @@ class pserver extends pservercore {
 
 	function createShowPropertyList(&$alist)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $ghtml;
 
 		if ($ghtml->frm_subaction === 'commandcenter') {
 			$alist['property'][] = "a=updateform&sa=commandcenter";
@@ -293,7 +336,7 @@ class pserver extends pservercore {
 
 	function createShowAlist(&$alist, $subaction = null)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $login, $ghtml;
 
 		// LxCenter:
 		// No menu structures for Domain and Advanced here?
@@ -332,15 +375,19 @@ class pserver extends pservercore {
 
 		if ($ghtml->frm_o_o['0']['class'] === 'pserver') {
 			$alist[] = "a=show&o=phpini";
+			$alist[] = "a=updateform&sa=extraedit&o=phpini";
 		}
 
 		$alist[] = "a=show&o=serverweb";
 		$alist[] = "a=show&o=serverftp";
+
+		if ($login->isAdmin()) {
+			$alist[] = "a=list&c=phpmodule";
+		}
+
 		$this->getMysqlDbAdmin($alist);
 		$alist[] = "a=updateform&sa=mysqlpasswordreset";
 		$alist[] = "a=list&c=dbadmin";
-
-
 	/*
 		
 	//	$alist['__title_nnn'] = 'Machine';

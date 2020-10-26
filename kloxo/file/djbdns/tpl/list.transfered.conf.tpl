@@ -1,5 +1,5 @@
 <?php
-	$dir = "/opt/configs/djbdns/axfrdns";
+	$dir = "/home/djbdns/axfrdns";
 
 	// MR -- importance if not active
 	if (!file_exists($dir)) { return; }
@@ -20,25 +20,24 @@
 		exec_with_all_closed("cd {$dir}; make");
 	}
 
-	$datadir = "/opt/configs/djbdns/tinydns/root";
+	$datadir = "/home/djbdns/tinydns/root";
 
 	if (!file_exists("{$datadir}/slave")) {
 		touch("{$datadir}/slave");
 	}
 
-	if (!file_exists("/etc/rc.d/init.d/djbdns")) { return; }
+	if (!file_exists("{$datadir}/reverse")) {
+		touch("{$datadir}/reverse");
+	}
 
 	exec("cd {$datadir}; cat master slave reverse > data; make");
 
-	if (file_exists("/etc/rc.d/init.d/djbdns")) {
-		createRestartFile("restart-dns");
+	if ($driver !== 'djbdns') { return; }
 
-		$path = "/opt/configs/djbdns/conf/master";
-		$dirs = glob("{$path}/*");
+	$path = "/opt/configs/djbdns/conf/master";
+	$dirs = glob("{$path}/*");
 
-		foreach ($dirs as $d) {
-			$d = str_replace("{$path}/", "", $d);
-
-			exec_with_all_closed("sh /script/dnsnotify {$d}");
-		}
+	foreach ($dirs as $d) {
+		$d = str_replace("{$path}/", "", $d);
+		exec_with_all_closed("sh /script/dnsnotify {$d}");
 	}

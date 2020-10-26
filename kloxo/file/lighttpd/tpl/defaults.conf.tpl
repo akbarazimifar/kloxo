@@ -3,22 +3,36 @@
 
 <?php
 
+if (!file_exists("/var/log/lighttpd")) {
+	mkdir("/var/log/lighttpd",0777);
+}
+
+chmod("/var/log/lighttpd", 0777);
+
+if (!isset($phpselected)) {
+	$phpselected = 'php';
+}
+
+if (!isset($timeout)) {
+	$timeout = '300';
+}
+
+if (!file_exists("/var/run/letsencrypt/.well-known/acme-challenge")) {
+	exec("mkdir -p /var/run/letsencrypt/.well-known/acme-challenge");
+}
+
 $srcconfpath = "/opt/configs/lighttpd/etc/conf";
 $srcconfdpath = "/opt/configs/lighttpd/etc/conf.d";
 $trgtconfpath = "/etc/lighttpd";
 $trgtconfdpath = "/etc/lighttpd/conf.d";
 
-if (file_exists("{$srcconfpath}/custom.lighttpd.conf")) {
-	copy("{$srcconfpath}/custom.lighttpd.conf", "{$trgtconfpath}/lighttpd.conf");
-} else {
-	copy("{$srcconfpath}/lighttpd.conf", "{$trgtconfpath}/lighttpd.conf");
-}
+$sslpath = "/home/kloxo/ssl";
 
-if (file_exists("{$srcconfdpath}/custom.~lxcenter.conf")) {
-	copy("{$srcconfdpath}/custom.~lxcenter.conf", "{$trgtconfdpath}/~lxcenter.conf");
-} else {
-	copy("{$srcconfdpath}/~lxcenter.conf", "{$trgtconfdpath}/~lxcenter.conf");
-}
+$custom_conf = getLinkCustomfile($srcconfpath, "lighttpd.conf");
+copy($custom_conf, "{$trgtconfpath}/lighttpd.conf");
+
+$custom_conf = getLinkCustomfile($srcconfdpath, "~lxcenter.conf");
+copy($custom_conf, "{$trgtconfdpath}/~lxcenter.conf");
 
 if (($webcache === 'none') || (!$webcache)) {
 	$ports[] = '80';
@@ -32,30 +46,22 @@ $portlist = array('var.port', 'var.portssl');
 
 $globalspath = "/opt/configs/lighttpd/conf/globals";
 
-if ($reverseproxy) {
-	$confs = array('proxy_standard' => 'switch_standard', 'stats_none' => 'stats', 
-		'dirprotect_none' => 'dirprotect_stats');
+if ($stats['app'] === 'webalizer') {
+	$confs = array('php-fpm_standard' => 'switch_standard', 'stats_webalizer' => 'stats');
 } else {
-	if ($stats['app'] === 'webalizer') {
-		$confs = array('php-fpm_standard' => 'switch_standard', 'stats_webalizer' => 'stats',
-			'dirprotect_webalizer' => 'dirprotect_stats');
-	} else {
-		$confs = array('php-fpm_standard' => 'switch_standard', 'stats_awstats' => 'stats',
-			'dirprotect_awstats' => 'dirprotect_stats');
-	}
-
+	$confs = array('php-fpm_standard' => 'switch_standard', 'stats_awstats' => 'stats');
 }
 
 foreach ($confs as $k => $v) {
-	if (file_exists("{$globalspath}/custom.{$k}.conf")) {
-		copy("{$globalspath}/custom.{$k}.conf", "{$globalspath}/{$v}.conf");
-	} else {
-		copy("{$globalspath}/{$k}.conf", "{$globalspath}/{$v}.conf");
-	}
+	$custom_conf = getLinkCustomfile($globalspath, "{$k}.conf");
+	copy($custom_conf, "{$globalspath}/{$v}.conf");
 }
 
+$acmechallenge_conf = getLinkCustomfile($globalspath, "acme-challenge.conf");
+
 foreach ($certnamelist as $ip => $certname) {
-	$certnamelist[$ip] = "/home/kloxo/httpd/ssl/{$certname}";
+	$cert_ip = $ip;
+	$cert_file = "{$sslpath}/{$certname}";
 }
 
 if ($indexorder) {
@@ -74,60 +80,84 @@ $count = 0;
 
 $tabs = array("", "\t");
 ?>
-server.port = "<?php echo $ports[0]; ?>"
-<?php echo $portlist[1]; ?> = "<?php echo $ports[1]; ?>"
+## MR -- ref: https://www.kb.cert.org/vuls/id/JLAD-ABZJ3A
+#server.modules += ( "mod_magnet" )
+magnet.attract-raw-url-to = ( "/opt/configs/lighttpd/conf/globals/deny-proxy.lua" )
 
-<?php
+evasive.max-conns-per-ip = 50
+server.errorfile-prefix = "/home/kloxo/httpd/error/"
 
-foreach ($ports as &$port) {
-	if ($count !== 0) {
-		foreach ($certnamelist as $ip => $certname) {
-?>
+server.port = "<?=$ports[0];?>"
 
-$SERVER["socket"] == ":" + <?php echo $portlist[$count]; ?> {
+
+$SERVER["socket"] == ":<?=$ports[1];?>" {
 
 	ssl.engine = "enable"
 
-	ssl.pemfile = "<?php echo $certname; ?>.pem"
+	ssl.pemfile = "<?=$cert_file;?>.pem"
+	ssl.dh-file = "/etc/ssl/certs/dhparam.pem"
 <?php
-			if (file_exists("{$certname}.ca")) {
+if (file_exists("{$cert_file}.ca")) {
+?>
+	ssl.ca-file = "<?=$cert_file;?>.ca"
+<?php
+}
+
+$dirs = glob("{$sslpath}/*.pem", GLOB_MARK);
+
+if (count($dirs) > 0) {
+	foreach($dirs as $k => $v) {
+		$f = str_replace(".pem", "", $v);
+		$d = str_replace("{$sslpath}/", "", $f);
+
+		if ($certname === $d) { continue; }
 ?>
 
-	ssl.ca-file = "<?php echo $certname; ?>.ca"
+	$HTTP["host"] =~ "(^|www\.|cp\.|webmail\.|mail\.)<?=str_replace(".", "\.", $d);?>" {
+
+		ssl.pemfile = "<?=$v;?>"
 <?php
-			}
+		if (file_exists("{$f}.ca")) {
 ?>
-	ssl.use-sslv2 = "disable"
-	ssl.use-sslv3 = "disable"
+		ssl.ca-file = "<?=$f;?>.ca"
 <?php
 		}
+?>
+
+		ssl.use-sslv2 = "disable"
+		ssl.use-sslv3 = "disable"
+		sl.use-compression = "disable"
+		ssl.honor-cipher-order = "enable"
+		ssl.cipher-list = "ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS"
+
 	}
-?>
-
-<?php echo $tabs[$count]; ?>$HTTP["host"] =~ "^default\.*" {
-
-<?php echo $tabs[$count]; ?>	var.rootdir = "/home/kloxo/httpd/default/"
-<?php echo $tabs[$count]; ?>	var.user = "apache"
-<?php echo $tabs[$count]; ?>	var.fpmport = "<?php echo $fpmportapache; ?>"
-
-<?php echo $tabs[$count]; ?>	server.document-root = var.rootdir
-
-<?php echo $tabs[$count]; ?>	index-file.names = ( <?php echo $indexorder; ?> )
-
-<?php echo $tabs[$count]; ?>	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-<?php echo $tabs[$count]; ?>}
-
-<?php
-	if ($count !== 0) {
-?>
-}
 <?php
 	}
-
-	$count++;
 }
 ?>
+
+}
+
+
+$HTTP["host"] =~ "^default\.*" {
+
+	server.follow-symlink = "enable"
+
+	include "<?=$acmechallenge_conf;?>"
+
+	var.rootdir = "/home/kloxo/httpd/default/"
+	var.user = "apache"
+	var.fpmport = "<?=$fpmportapache;?>"
+	var.phpselected = "php"
+	var.timeout = "<?=$timeout;?>"
+
+	server.document-root = var.rootdir
+
+	index-file.names = ( <?=$indexorder;?> )
+
+	include "<?=$globalspath;?>/switch_standard.conf"
+
+}
 
 
 ### end - web of initial - do not remove/modify this line

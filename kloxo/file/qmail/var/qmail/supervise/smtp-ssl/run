@@ -1,5 +1,10 @@
 #!/bin/sh
 
+if [ -f ./custom.run ] ; then
+	. ./custom.run
+	return $?
+fi
+
 QMAILDUID=$(id -u qmaild)
 NOFILESGID=$(id -g qmaild)
 MAXSMTPD=$(cat /var/qmail/control/concurrencyincoming)
@@ -20,13 +25,13 @@ else
 	RECORDIO="/usr/bin/recordio"
 fi
 
-#BLACKLIST=`cat /var/qmail/control/blacklists`
+#BLACKLIST=$(cat /var/qmail/control/blacklists)
 #RBLSMTPD="/usr/bin/rblsmtpd"
 
 if [ -f /var/qmail/control/spamdyke ] ; then
 	### MR -- content of SPAMDYKE is '/usr/bin/spamdyke -f /etc/spamdyke.conf'
 	VAR1=$(cat /var/qmail/control/spamdyke)
-	VAR2=" --tls-level=smtps --tls-certificate-file=/var/qmail/control/servercert.pem" 
+	VAR2=" --tls-level=smtps" 
 	### MR -- special for smtp-ssl
 	SPAMDYKE=$VAR1$VAR2
 else
@@ -46,7 +51,7 @@ if [ -f /var/qmail/control/softlimit ] ; then
 	### MR -- softlimit file must content with '/usr/bin/softlimit -m SOFTLIMITVAR'
 	### where SOFTLIMITVAR is 72000000 for 64bit and 18000000
 	### Note: incresing SOFTLIMITVAR if not enough (example: because 'login fail')
-	SOFTLIMIT=$(cat /var/qmail/control/softlimit)
+	SOFTLIMIT=$(cat /var/qmail/control/softlimit|tr '\r' ' '|tr '\n' ' ')
 else
 	SOFTLIMIT=""
 fi
@@ -58,7 +63,6 @@ PORT=465
 ### remove SMTPS=1 and change to REQUIRE_AUTH=1
 export SMTPAUTH="!" \
 	SSL=1 \
-	REQUIRE_AUTH=0 \
 	FORCE_TLS=0 \
 	DENY_TLS=0 \
 	AUTH=1 \

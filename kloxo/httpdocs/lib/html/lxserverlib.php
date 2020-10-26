@@ -15,7 +15,7 @@ function lxserver_main()
 	//	$login->initThisDef();
 		$gbl->is_slave = true;
 		$gbl->is_master = false;
-		$rmt = unserialize(lfile_get_contents("__path_slave_db"));
+		$rmt = unserialize(lfile_get_contents($sgbl->__path_slave_db));
 		$login->password = $rmt->password;
 		$argv[1] = "Running as Slave";
 	} else if ($argv[1] === 'master') {
@@ -180,10 +180,12 @@ function checkRestart()
 					//	exec($c);
 					} else {
 						if (strpos($cmd, 'restart-') !== false) {
-							exec_with_all_closed("sh /script/{$cmd}");
+							exec_with_all_closed("sh /script/{$cmd} -y");
+						} elseif ($cmd === 'restart') {
+							exec_with_all_closed("sh /script/{$cmd} -y");
 						} else {
-							exec_with_all_closed("/etc/init.d/{$cmd} restart");
-						//	exec("/etc/init.d/{$cmd} restart");
+						//	exec("service {$cmd} restart");
+							exec_with_all_closed("service {$cmd} restart");
 						}
 					}
 				}
@@ -204,7 +206,7 @@ function special_bind_restart($cmd)
 
 	if (myPcntl_fork() === 0) {
 		socket_close($sgbl->__local_socket);
-		exec("/etc/init.d/$cmd restart  </dev/null >/dev/null 2>&1 &");
+		exec("service $cmd restart  </dev/null >/dev/null 2>&1 &");
 		exit;
 	} else {
 		myPcntl_wait();

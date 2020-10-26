@@ -1,10 +1,13 @@
 <?php
-	exec("echo '' > /opt/configs/yadifa/conf/defaults/yadifa.reverse.conf");
+	$ypath = "/opt/configs/yadifa/conf/defaults";
+
+	exec("echo '' > {$ypath}/yadifa.reverse.conf");
 
 	$d1names = $arpas;
 
 	// MR -- use nsd data because the same structure
 	$tpath = "/opt/configs/nsd/conf/reverse";
+
 	$d2files = glob("{$tpath}/*");
 
 	if (empty($d2files)) { return; }
@@ -26,20 +29,17 @@
 
 	foreach ($d1names as $k => $v) {
 		$zone  = "<zone>";
-		$zone .= "\n    domain          {$v}";
-		$zone .= "\n    type            master";
-		$zone .= "\n    file-name       reverse/{$v}";
-		$zone .= "\n#    allow-transfer  allower";
-		$zone .= "\n#    allow-notity    allower";
+		$zone .= "\n    domain              {$v}";
+		$zone .= "\n    type                master";
+		$zone .= "\n    file-name           reverse/{$v}";
+	//	$zone .= "\n    #allow-transfer     slave";
+	//	$zone .= "\n    #allow-notity       slave";
 		$zone .= "\n</zone>\n\n";
 
 		$str .= $zone;
 	}
 
-	$file = "/opt/configs/yadifa/conf/defaults/yadifa.reverse.conf";
+	$file = "{$ypath}/yadifa.reverse.conf";
 
 	file_put_contents($file, $str);
 
-	if (!file_exists("/etc/rc.d/init.d/yadifad")) { return; }
-
-	createRestartFile("restart-dns");

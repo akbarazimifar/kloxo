@@ -1,5 +1,27 @@
 #!/bin/sh
 
-list=(mysql mysqld)
+pfile1="/usr/local/lxlabs/kloxo/etc/process/mysql"
 
-. /script/restart.inc
+if [ -f $pfile1 ] ; then
+	rm -f "${pfile1}"*
+fi
+
+pfile2="/usr/local/lxlabs/kloxo/etc/process/_mysql"
+
+if [ -f $pfile2 ] ; then
+	rm -f "${pfile2}"*
+fi
+
+if [ -f /script/custom.restart-list.inc ] ; then
+	. /script/custom.restart-list.inc
+else
+	. /script/restart-list.inc
+fi
+
+list=${list_mysql[*]}
+
+if [ -f /script/custom.restart.inc ] ; then
+	. /script/custom.restart.inc
+else
+	. /script/restart.inc
+fi

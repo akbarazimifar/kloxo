@@ -54,8 +54,6 @@ class Sgbl
 		$this->__ver_major_minor_release = $this->__ver_major_minor . "." . $this->__ver_release;
 		$this->__ver_full = $t;
 		$this->__var_nname_impstr = "___";
-		$this->__var_prog_port = "7778";
-		$this->__var_prog_ssl_port = "7777";
 
 		$this->__var_lxlabs_marker = "__lxlabs_marker";
 		$this->__var_lpanelwidth = "220";
@@ -97,12 +95,14 @@ class Sgbl
 		$this->__path_client_root = "/home/kloxo/client";
 
 		// MR -- don't use isRpmInstalled for identified!!!
-		exec("rpm -q qmail-toaster", $out, $ret);
-		$this->__path_mail_root = (strpos($out[0], "qmail-toaster") !== false) ? "/home/vpopmail" : "/home/lxadmin/mail";
+	//	exec("rpm -qa qmail-toaster", $out);
+	//	$this->__path_mail_root = (count($out) > 0) ? "/home/vpopmail" : "/home/lxadmin/mail";
+		$this->__path_mail_root = "/home/vpopmail";
 		// MR -- still using old kloxo mail path
 		$this->__path_mail_data = "/home/lxadmin/mail";
 
 		$this->__path_kloxo_httpd_root = "/home/kloxo/httpd";
+		$this->__path_kloxo_root = "/home/kloxo";
 		$this->__path_lxlabs_base = "/usr/local/lxlabs";
 		$this->__path_program_etc = "/usr/local/lxlabs/kloxo/etc/";
 		$this->__path_program_root = "/usr/local/lxlabs/kloxo";
@@ -115,7 +115,7 @@ class Sgbl
 
 		$this->__path_program_start_vps_flag = $this->__path_program_root . "/etc/flag/start_vps.flg";
 
-		$this->__path_installapp_servervar = $this->__path_kloxo_httpd_root . "/installappdata/lx_template.servervars.phps";
+		$this->__path_easyinstaller_servervar = $this->__path_kloxo_httpd_root . "/easyinstallerdata/lx_template.servervars.phps";
 
 		// Default Values that will be overrriden in the kloxoconf file.
 	//	$this->__path_named_chroot = "/var/named/chroot/";
@@ -132,8 +132,25 @@ class Sgbl
 
 		$this->__var_no_sync = false;
 
-		$this->__path_ssl_root = $this->__path_kloxo_httpd_root . "/ssl";
-//		$this->__path_named_realpath = "$this->__path_named_chroot/$this->__path_named_path";
+	//	$this->__path_ssl_root = $this->__path_kloxo_httpd_root . "/ssl";
+		$this->__path_ssl_root = $this->__path_kloxo_root . "/ssl";
+	//	$this->__path_named_realpath = "$this->__path_named_chroot/$this->__path_named_path";
+
+		// MR -- something wrong under CentOS 7 if change port but after reboot back to use default port
+		// so, use this trick.
+		if (file_exists($this->__path_program_root . '/init/port-nonssl')) {
+			$this->__var_prog_port = file_get_contents(trim($this->__path_program_root . '/init/port-nonssl'));
+		} else {
+			$this->__var_prog_port = "7778";
+		}
+
+		// MR -- something wrong under CentOS 7 if change port but after reboot back to use default port
+		// so, use this trick.
+		if (file_exists($this->__path_program_root . '/init/port-ssl')) {
+			$this->__var_prog_ssl_port = file_get_contents(trim($this->__path_program_root . '/init/port-ssl'));
+		} else {
+			$this->__var_prog_ssl_port = "7777";
+		}
 
 		$this->__var_local_port = '7776';
 		$this->__var_remote_port = '7779';
@@ -143,7 +160,7 @@ class Sgbl
 
 		$this->__var_connection_type = "tcp";
 
-		$this->__path_dbschema = "$this->__path_program_root/file/.db_schema";
+		$this->__path_dbschema = "$this->__path_program_root/file/sql/.db_schema";
 
 		if ($this->__var_database_type === "sqlite") {
 			$this->__var_dbf = "{$this->__path_program_etc}/conf/db.db";

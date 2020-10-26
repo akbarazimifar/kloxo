@@ -39,9 +39,11 @@ foreach($list as $c) {
 		$mlist = $mmail->getList('mailaccount');
 		foreach($mlist as $ml) {
 			$spam = $ml->getObject('spam');
+
 			log_cleanup("- '{$ml->nname}' ('{$c->nname}') at '{$mmail->syncserver}'", $nolog);
 			$spam->setUpdateSubaction('full_update');
 			$spam->was();
+
 			$ml->setUpdateSubaction('full_update');
 			$ml->was();
 		}

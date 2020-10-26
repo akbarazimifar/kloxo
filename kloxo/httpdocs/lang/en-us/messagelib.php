@@ -11,7 +11,10 @@
 	- [%_domain_%] - translate to current domain (example: domain.com)
 */
 
-$__emessage['blocked'] = "Your address is blocked";
+$__emessage['token_not_match'] = "Token not match. No permit for remote login. Go back to <a href='/login/'>login</a> page";
+//$__emessage['blocked'] = "Your address is blocked. Wait 10 minutes to login again.";
+$__emessage['blocked'] = "Your IP address is blocked.";
+$__emessage['blocked_remaining'] = "Wait until";
 $__emessage['no_server'] = "Could not connect to the Server.";
 $__emessage['set_emailid'] = "Please Set Your EmailId Properly ";
 $__emessage['no_socket_connect_to_server'] = "Could not Connect to the server [%s]. This is most likely due to underlying network problem. Make sure that the server is accessible from this particular node by running <b>telnet slave-id 7779</b>   ";
@@ -145,9 +148,9 @@ $__information['blockedip_addform__pre'] = "<p>This is only meant for blocking a
 	"If allowed ip list is non-empty then, automatically all ips not listed are denied.</p>";
 
 $__information['general_updateform_portconfig_pre'] = "<p>This page is primarily meant to configure the ports of Kloxo-MR.</p>".
-	"<p>After making the changes here, you will need to restart Kloxo-MR service once for the changes to take effect.</p>".
-	"<p>Run this command '<b>sh /script/defaultport</b>' and the ports will be reset to the default. You can then restart Kloxo-MR.</p>".
-	"<p>Leave the fields blank to revert to default ports.</p>";
+	"<p>Leave the fields blank to revert to default ports. Need restart panel with <b>sh /script/restart</b> if auto restart failed.</p>".
+	"<p>Run '<b>sh /script/defaultport; sh /script/restart</b>' and the ports will be reset to the default.</p>".
+	"<p>Choose <b>kloxo.exe</b> if need low memory usage for panel itself.</p>";
 
 $__information['lxbackup_updateform_schedule_conf_pre'] = "<p>Please note that only the scheduled backups, that is, ".
 	"backups that start with the name <b>kloxo-scheduled-</b>, will be rotated.</p>".
@@ -175,7 +178,8 @@ $__information['lxguard_updateform_update_pre'] = "<p>Lxguard protects you again
 	"<p>If an IP is found in the whitelist, it won't be blocked, even if it has crossed the threshold of failed attempts.</p>".
 	"<p>To remove the warnings you get about Lxguard please click on the agreement checkbox below. </p>";
 
-$__information['general_updateform_generalsetting_pre'] = "<p>The 'HelpDesk URL' is a link to your HelpDesk, ".
+$__information['general_updateform_generalsetting_pre'] = "<p>Add multiple paths for 'Extra basedir' with separated by ':'. Example: /var/log/:/var/qmail:/opt/configs</p>" .
+	"<p>The 'HelpDesk URL' is a link to your HelpDesk, ".
 	"which will be used in place of the default help desk built into the software.</p>".
 	"<p>Community URL is the link the client will see on his left page, and in normal cases can point to your forum.</p>";
 
@@ -194,11 +198,12 @@ $__information['resourceplan_show__pre'] = "<p><b>Note:</b> ".
 	"If you change the values here, every account that uses this plan will be updated with the new values.</p>".
 	"<p>Click <url:a=updateForm&sa=description>[here]</url> to see the accounts configured on this plan.</p>";
 
-$__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>";
+$__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>".
+	"<p>Note: for 'Number Of FastCGI Children', 'Unlimited' equal to '4'</p>";
 
 $__information['lxbackup_updateform_backup_pre'] = "<p>The backup file will appear in the __backup directory of your client area. ".
 	"You can access it by clicking on the 'File Manager' Tab.</p>".
-	"<p>To restore a backup, you can first upload it to the server using the <b>upload</b> tab.</p>".
+	"<p>To restore a backup, you can first upload it to the server using the <b>upload</b> tab or use 'Restore from FTP' (not recommended for big size backup file).</p>".
 	"<p>Please note that Kloxo-MR backup is heirarchical. ".
 	"If you take backup of a particular resource, everything under it is automatically included. ".
 	"Thus if you take backup of admin, then you need not take backups of clients under you separately.</p>";
@@ -356,11 +361,10 @@ $__information['rubyrails_addform__pre'] = "<p>The application would be normally
 	"<p>The path would be /home/client/ror/domain.com/applicationname. If you specify the <b>accessible directly</b> flag, ".
 	"then the application would be accessible at http://domain.com itself.</p>";
 
-$__information['installapp_addform__pre'] = "<p>To install an application in the document root, please leave the <b>Location</b> blank.</p>".
+$__information['easyinstaller_addform__pre'] = "<p>To install an application in the document root, please leave the <b>Location</b> blank.</p>".
 	"<p>To install the same application for another domain, please use the select box on the top, and change the domain to another, ".
 	"and you will be able to get same form with the new domain as the parent.</p>".
-	"<p>A message with login and url information will be sent to the contact email address you provide here.</p>".
-	"<p><b><span style='color: red;'>WARNING:</span></b> InstallApp is deprecated. Use Installatron or SpectrApps instead.</p>";
+	"<p>A message with login and url information will be sent to the contact email address you provide here.</p>";
 
 $__information['mysqldb_updateform_restore_pre'] = "<p>You can use this only to restore the backups that were explicitly taken in Kloxo-MR ".
 	"itself using the <b>Get Backup</b> tab.</p>".
@@ -382,25 +386,32 @@ $__information['updateform_domainpserver_pre'] = "<p>These are the servers on wh
 $__information['updateform_exclusive_pre'] = "<p>IP address can be assigned to certain client exclusively.</p>";
 
 $__information['domainipaddress_updateform_update_pre'] = "<p>This will allow you to map a particular ipaddress to a domain.</p>".
-	"<p>That is, if someone accesses http://ip, then the document root of the domain configured here will be shown.</p>";
+	"<p>That is, if someone accesses http://ip, then the document root of the domain configured here will be shown.</p>" .
+	"<p><b>WARNING</b>:" .
+	"<ul>" .
+		"<li>Please always select '--Disabled--' if you ONLY have 1 IP</li>".
+		"<li>Need 1 IP as shared-IP (no assign to domain) if you have more than 1 IPs and other IP able to assign to domain</li>".
+	"</ul>" .
+	"</p>";
 
 $__information['sslipaddress_updateform_update_pre'] = "<p>To setup an ssl for an ipaddress, first upload/add an ssl certificate ".
 	"from <url:goback=2&a=list&c=sslcert>[here]</url>.</p>";
 
-$__information['sslcert_updateform_update_pre'] = "<p>Two option for SSL certifate:</p>" .
+$__information['sslcert_updateform_update_pre'] = "<p>Two option for SSL certificate:</p>" .
 		"<ul>" .
 			"<li><b>IP Address based</b>: must assign to certain IP address and possible access domain via IP address" .
 				"<p>To assign IP address, click <url:goback=2&a=list&c=ipaddress>[here]</url> and then go into an IP address, ".
 				"and click on <b>ssl certificate</b> tab and select an IP address.</p>" .
 				"<p>The admin will need to have assigned you an exclusive ipaddress for you to access this feature.</p></li>" .
 			"<li><b>Domain based</b>: possible every domains heve their owned ssl certifate without assign to IP address</li>" .
-		"</ul>" .
+		"</ul>";
+	/*
 		"<p><b>Note</b>:" .
 		"<ul>" .
 			"<li><b>Common Name</b>: Set wildcards (*) domain (ex: *.domain.com)</li>" .
 			"<li><b>Subject Alt Name</b>: Set primary domain (ex: domain.com) and other domains (separated by comma; including their wildcards if needed)</li>" .
 		"</ul>";
-
+	*/
 $__information['domain_not_customer'] = "<p>To add a domain, create a customer first, and you can add domains under him.</p>".
 	"<p>To add a customer, click <url:a=addform&c=client&dta[var]=cttype&dta[val]=customer>[here]</url>.</p>";
 
@@ -417,10 +428,7 @@ $__information['clientmail_list__pre'] = "<p>This will list the number of mails 
 	"<p>If it is a full mailaccount like <b>user@domain.com</b>, then it represents mail sent via relay.</p>".
 	"<p>If it is a simple username, then it represents mail sent via a form in the web server.</p>";
 
-$__information['servermail_updateform_update_pre'] = "<p>It is very essential that you set the my name to " .
-	"a properly resolvable hostname, since otherwise, many public mailservers like hotmail will reject mails from your server.</p>".
-	"<p>You can have the mail server running on additional port by " .
-	"specifying it here. Leave it blank to to disable additional smtp.</p>".
+$__information['servermail_updateform_update_pre'] = "<p>Set 'My Name' with domain name. Better use domain which taken from server's hostname.</p>".
 	"<p>The max smtp instances specifies the maximum number of smtp processes that are allowed. You should set it to some number, " .
 	"say 10, if you are getting spammed heavily.</p>".
 	"<p>If you leave it blank, it will be set to UNLIMITED, which is the default.</p>" .
@@ -440,8 +448,7 @@ $__information['updateform_switchprogram_pre'] = "<p>Switching Programs will tak
 	"<p>You will need to wait one minute before the new service properly restarts.</p>".
 	"<p>Add '<b>&lt;?php header(\"X-Hiawatha-Cache: 10\"); ?&gt;</b>' in top of index.php to boosting Hiawatha performance. ".
 	"Only Nginx and Hiawatha able to use 'microcache' at this moment.</p>".
-	"<p>Enable '<b>No fix config</b>' will perform no action to fix configuration where important for huge amount for domains; ".
-	"you must run '<b>sh /script/fix-all; sh /script/restart-all</b>' from ssh manually.</p>";
+	"<p>All web servers already installed and it's make faster switch between them. If select/unselect 'Use Apache 2.4' and or 'Use Pagespeed' better choose other webserver (other than Apache or Proxy) and then select back to previous.</p>";
 
 $__information['updateform_permalink_pre'] = "<p>Kloxo-MR comes with default permalink configuration for many apps.</p>".
 	"<p>Please select the application and the directory where you have installed it, ".
@@ -482,7 +489,7 @@ $__information['spam_updateform_update_pre'] = "<p>The 'score'--which can be 1-1
 
 $__information['web_updateform_enable_frontpage_flag_pre'] = "<p>The front page password will be the same as that of the system user (main ftp user).</p>";
 
-$__information['installappsnapshot_list__pre'] = "<p>Snapshots are the exact copy of the database and the files of your application at a particular time.</p>".
+$__information['easyinstallersnapshot_list__pre'] = "<p>Snapshots are the exact copy of the database and the files of your application at a particular time.</p>".
 	"<p>You can restore your application to a particular snapshot by clicking on the <b>restore</b> button.</p>";
 
 $__information['sshclient_updateform_disabled_pre'] = "<p>Your admin hasn't enabled shell access for you.</p>".
@@ -753,10 +760,44 @@ $__information['sslcert_list__pre'] = "<p>List certificate which you able to use
 $__information['sslcert_addform__pre'] = $__information['sslcert_updateform_update_pre'];
 
 $__information['sslcert_addform_uploadfile_pre'] = "<p>You can upload your certificate here.</p>".
-	"<p>As alternative, you can use 'Add Upload Txt' to copy-paste certificate contents.</p>";
+	"<p>As alternative, you can use 'Add SSL Text' to copy-paste certificate contents.</p>" .
+	"<p><b>Note</b>:" .
+		"<ul>" . 
+			"<li>You can combine/merge all '(---CERTIFICATE---)' file/text and upload/insert to 'Certificate File'/'Certificate' or" .
+			" insert Certificate Authority/Chain/Intermediate file/text to 'Certificate Authority/Intermediate' file/text</li>" .
+		"</ul>";
 
-$__information['sslcert_addform_uploadtxt_pre'] = "<p>You can copy-paste your certificate contents here.</p>".
-	"<p>As alternative, you can use 'Add Upload File' to upload certificate files.</p>";
+$__information['sslcert_addform_uploadtext_pre'] = "<p>You can copy-paste your certificate contents here.</p>".
+	"<p>As alternative, you can use 'Add SSL File' to upload certificate files.</p>" .
+	"<p><b>Note</b>:" .
+		"<ul>" . 
+			"<li>You can combine/merge all '(---CERTIFICATE---)' file/text and upload/insert to 'Certificate File'/'Certificate' or" .
+			" insert Certificate Authority/Chain/Intermediate file/text to 'Certificate Authority/Intermediate' file/text</li>" .
+		"</ul>";
+
+$__information['sslcert_addform_letsencrypt_pre'] = "<p>You can use <b>Let's Encrypt</b> free SSL here. </p>" . 
+	"Subdomain must be part of domain SSL and always create for domain only and add subdomain in SAN entry. " .
+	"</p>" .
+	"<p><b>Note</b>:" .
+		"<ul>" .
+			"<li>Expire in 90 days and then need renew (update) before expire</li>" .
+			"<li>Use 'Add SSL Link' to parent SSL (domain SSL) for activate subdomain SSL</li>" .
+			"<li>Possible 100 SANs (Subject Alternative Names) for each domain</li>" .
+			"<li>If using 'Remote Mail' for domain, remove 'webmail.domain.com' from 'Subject Alternative Name (SAN)'</li>" .
+			"<li>Don't use 'redirect' for listing in 'Subject Alternative Name (SAN)' because may trouble to verifying token. Or remove it from listing</li>" .
+		"</ul>";
+
+$__information['sslcert_addform_startapi_pre'] = "<p>You can use <b>StartSSL API</b> free SSL here. </p>" . 
+	"Subdomain must be part of domain SSL and always create for domain only and add subdomain in SAN entry. " .
+	"</p>" .
+	"<p><b>Note</b>:" .
+		"<ul>" .
+			"<li>Expire in 365 days and then need renew (update) before expire</li>" .
+			"<li>Max 5 SANs per-domain</li>" .	
+			"<li>Need setting Key and token via 'sh /script/startapi.sh-account'</li>" .	
+		"</ul>";
+
+$__information['sslcert_addform_link_pre'] = "<p>For wildcards ('*') or 'Let's Encrypt' SSL, SSL for subdomain just link to their parent SSL";
 
 $__information['serverweb_updateform_edit_pre'] = $__information['webserver_config'];
 
@@ -818,7 +859,7 @@ $__information['domain_updateform_changeowner_pre'] = "<p>No information...</p>"
 
 $__information['mailforward_list__pre'] = "<p>No information...</p>";
 
-$__information['mailforward_addform_forward_pre'] = "<p>No information...</p>";
+$__information['mailforward_addform_forward_pre'] = "<p>If want to piping to php, set like '| lxphp.exe /path/to/file.php' to 'Forward To'. By default, to mail address (like account@domain.com)</p>";
 
 $__information['mailforward_addform_alias_pre'] = "<p>No information...</p>";
 
@@ -888,4 +929,34 @@ $__information['watchdog_addform__pre'] = "<p>Settings:" .
 		"<li>Port - service port number</li>" .
 		"<li>Action - command required to restart service</li>" .
 	"</ul></p>" .
-	"<p><b>Note</b>: - usually 'Action' to restart service is 'service XXX restart' or '/etc/init.d/XXX restart'.</p>";
+	"<p><b>Note</b>: - usually 'Action' to restart service is 'service XXX restart'.</p>";
+
+$__information['updateform_webbasics_pre'] =
+	"<p>By default, document root location is '/home/[user]/[domain]'.</p>" .
+	"<p>Click 'Enable Directory Index' if want listing directories.</p>" .
+	"<p>Attention:" .
+		"<ul>" .
+			"<li>If using 'authorize' SSL (like Let's Encrypt SSL), browser may redirect to https automatically</li>" .
+		"</ul>" .
+	"</p>";
+
+$__information['updateform_webfeatures_pre'] =
+	"<p>In web proxy (like Nginx-proxy), select 'back-end' in 'Web Selected' mean execute php in back side (Apache) under Nginx-proxy. " .
+	"Otherwise, select 'front-end' mean execute php in front side (Nginx) under pure Nginx.</p>" .
+	"<p>If enable 'multiple php', possible select php for website under 'Php Selected'. " .
+	"Select '--Php Used--' mean use php where declare in 'Php Used' under 'Webserver Configure'.</p>" .
+	"<p>Set 'Timeout' (in seconds) to modified 'idle timeout' for php process.</p>" .
+	"<p>Set 'Microcache Time' (in seconds) to implement microcache for nginx or hiawatha.</p>" .
+	"<p>Use 'General Header' and 'HTTPS Header' default value for securing website in 'medium' level.</p>";
+
+$__information['phpmodule_list__pre'] = "<p>Click 'enable' ('+' sign) to enable module; click 'disable' ('-' sign) to disable module.</p>" .
+	"<p><b>Note</b>: need click 'restart' ('*' sign) to restart 'php-fpm' service (all changes impact to 'php-fpm' service).</p>" .
+	"<p>By default, certain modules already enabled ('.ini'; example: 'bcmath.ini') and others already disabled ('.nonini'; example: 'dba.nonini').</p>" .
+	"<p>Disabled for enable modules will change their config file from '*.ini' to '*_unused.nonini' (example: 'bcmatch.ini' to 'bcmath_unused.nonini').</p>" .
+	"<p>Otherwise, enabled for disable module will be change '*.nonini' to '*_used.ini' (example: 'dba.nonini' to 'dba_used.nonini').</p>";
+
+$__information['sendmailban_addform__pre'] = "<p>Add 'Target' directory to ban PHP's sendmail.</p>" .
+	"<p>If select '/' that mean ban all sendmails from all domains under this client.</p>" .
+	"<p>Under 'admin', enable 'As Absolute Path' if want absolute path. Example: '/home' will be convert to '/home' instead '/home/admin/home'";
+
+

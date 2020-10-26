@@ -86,7 +86,7 @@ class Cron extends Lxdb
 		global $gbl, $sgbl, $login, $ghtml;
 
 		if ($parent->getClass() !== 'pserver') {
-			if (!file_exists("/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg")) {
+			if (!file_exists("../etc/flag/enablecronforall.flg")) {
 				return;
 			}
 		}
@@ -194,10 +194,6 @@ class Cron extends Lxdb
 		return ($this->ttype === 'simple');
 	}
 
-	function PreUpdate($subaction, $param)
-	{
-	}
-
 	function update($subaction, $param)
 	{
 		$param['minute'] = self::convertToAllIfExists($param['minute']);
@@ -214,7 +210,7 @@ class Cron extends Lxdb
 		global $gbl, $sgbl, $login, $ghtml;
 
 		// MR --- for security reason, only enable for admin
-		if (!file_exists("/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg")) {
+		if (!file_exists("../etc/flag/enablecronforall.flg")) {
 			if ($login->nname !== 'admin') { return; }
 		}
 
@@ -237,7 +233,7 @@ class Cron extends Lxdb
 			return $vlist;
 		}
 
-	//	$this->convertBack();
+		$this->convertBack();
 
 		$vlist["username"] = array('M', $this->username);
 
@@ -261,7 +257,7 @@ class Cron extends Lxdb
 		global $gbl, $sgbl, $login, $ghtml;
 
 		// MR --- for security reason, only enable for admin
-		if (!file_exists("/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg")) {
+		if (!file_exists("../etc/flag/enablecronforall.flg")) {
 			if ($login->nname !== 'admin') { return; }
 		}
 		
@@ -389,6 +385,10 @@ class Cron extends Lxdb
 	static function convertToAllIfExists($part)
 	{
 		if ((isset($part)) && (stripos($part, '--all--') !== false)) {
+			$part = '--all--';
+		}
+
+		if ((!isset($part)) || ($part === '')) {
 			$part = '--all--';
 		}
 

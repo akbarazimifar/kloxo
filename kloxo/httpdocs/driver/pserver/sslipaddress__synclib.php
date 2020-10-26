@@ -6,7 +6,9 @@ class sslipaddress__sync extends lxDriverClass
 	{
 		global $login;
 
-		$name = sslcert::getSslCertnameFromIP($this->main->nname);
+		// MR -- no need convert like eth0-0 to eth0_0 for ssl filename
+	//	$name = sslcert::getSslCertnameFromIP($this->main->nname);
+		$name = $this->main->nname;
 
 		$path = "__path_ssl_root";
 
@@ -22,18 +24,16 @@ class sslipaddress__sync extends lxDriverClass
 
 		lfile_put_contents("$path/$name.crt", $contentscer);
 		lfile_put_contents("$path/$name.key", $contentskey);
-	//	$contentpem = "$contentscer\n$contentskey";
-
-		// MR -- make the same as program.pem; like inside lighttpd.conf example inside
-		$contentpem = "$contentskey\n$contentscer";
-
-		lfile_put_contents("$path/$name.pem", $contentpem);
 
 		if ($contentsca) {
-			lfile_put_contents("$path/$name.ca", $contentsca);
+			$contentspem = "{$contentskey}\n{$contentscer}\n{$contentsca}";
+			lfile_put_contents("{$path}/{$name}.ca", $contentsca);
 		} else {
-			lxfile_cp("theme/filecore/program.ca", "$path/$name.ca");
+			$contentspem = "{$contentskey}\n{$contentscer}";
+			lxfile_cp("../file/ssl/default.ca", "{$path}/{$name}.ca");
 		}
+
+		lfile_put_contents("{$path}/{$name}.pem", $contentspem);
 
 	//	createRestartFile($this->main->__var_webdriver);
 		createRestartFile("restart-web");

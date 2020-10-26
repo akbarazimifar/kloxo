@@ -6,21 +6,38 @@
 
 <?php
 
+$error_handler = "Alias = /error:/home/kloxo/httpd/error
+#ErrorHandler = 400:/error/400.html
+ErrorHandler = 401:/error/401.html
+ErrorHandler = 403:/error/403.html
+ErrorHandler = 404:/error/404.html
+#ErrorHandler = 500:/error/500.html
+ErrorHandler = 501:/error/501.html
+#ErrorHandler = 502:/error/502.html
+ErrorHandler = 503:/error/503.html
+#ErrorHandler = 504:/error/504.html";
+
+if (!isset($phpselected)) {
+	$phpselected = 'php';
+}
+
+if (!isset($timeout)) {
+	$timeout = '300';
+}
+
+if (!file_exists("/var/run/letsencrypt/.well-known/acme-challenge")) {
+	exec("mkdir -p /var/run/letsencrypt/.well-known/acme-challenge");
+}
+
 $srcconfpath = "/opt/configs/hiawatha/etc/conf";
 $trgtconfpath = "/etc/hiawatha";
 
 if ($reverseproxy) {
-	if (file_exists("{$srcconfpath}/custom.hiawatha_proxy.conf")) {
-		copy("{$srcconfpath}/custom.hiawatha_proxy.conf", "{$trgtconfpath}/hiawatha.conf");
-	} else {
-		copy("{$srcconfpath}/hiawatha_proxy.conf", "{$trgtconfpath}/hiawatha.conf");
-	}
+	$custom_conf = getLinkCustomfile($srcconfpath, "hiawatha_proxy.conf");
+	copy($custom_conf, "{$trgtconfpath}/hiawatha.conf");
 } else {
-	if (file_exists("{$srcconfpath}/custom.hiawatha_standard.conf")) {
-		copy("{$srcconfpath}/custom.hiawatha_standard.conf", "{$trgtconfpath}/hiawatha.conf");
-	} else {
-		copy("{$srcconfpath}/hiawatha_standard.conf", "{$trgtconfpath}/hiawatha.conf");
-	}
+	$custom_conf = getLinkCustomfile($srcconfpath, "hiawatha_standard.conf");
+	copy($custom_conf, "{$trgtconfpath}/hiawatha.conf");
 }
 
 if (($webcache === 'none') || (!$webcache)) {
@@ -31,10 +48,12 @@ if (($webcache === 'none') || (!$webcache)) {
 	$ports[] = '8443';
 }
 
+$reverseports = array('30080', '30443');
+
 $portnames = array('nonssl', 'ssl');
 
 foreach ($certnamelist as $ip => $certname) {
-	$certnamelist[$ip] = "/home/kloxo/httpd/ssl/{$certname}";
+	$certnamelist[$ip] = "/home/kloxo/ssl/{$certname}";
 }
 
 $defaultdocroot = "/home/kloxo/httpd/default";
@@ -46,64 +65,72 @@ $fpmportapache = 50000;
 ?>
 
 UrlToolkit {
+	ToolkitID = monitor
+	RequestURI isfile Return
+	Match ^/(css|files|fonts|images|js)(/|$) Return
+	Match ^/(favicon.ico|robots.txt)$ Return
+	Match [^?]*(\?.*)? Rewrite /index.php$1
+}
+
+UrlToolkit {
 	ToolkitID = block_shellshock
 	#Header * \(\)\s+\{ DenyAccess
 	Header User-Agent \(\)\s*\{ DenyAccess
 	Header Referer \(\)\s*\{ DenyAccess
 }
 
+## MR -- ref: https://www.hiawatha-webserver.org/weblog/115
+UrlToolkit {
+	ToolkitID = block_httpoxy
+	Header Proxy .* DenyAccess
+}
+
 UrlToolkit {
 	ToolkitID = findindexfile
 <?php
-	$v2 = "";
+$v2 = "";
 
-	foreach ($indexorder as $k => $v) {
+foreach ($indexorder as $k => $v) {
 ?>
-	Match ^([^?]*)/<?php echo $v2; ?>(\?.*)?$ Rewrite $1/<?php echo $v; ?>$2 Continue
+	Match ^([^?]*)/<?=$v2;?>(\?.*)?$ Rewrite $1/<?=$v;?>$2 Continue
 	RequestURI isfile Return
 <?php
-		$v2 = str_replace(".", "\.", $v);
-	}
+	$v2 = str_replace(".", "\.", $v);
+}
 ?>
-	Match ^([^?]*)/<?php echo $v2; ?>(\?.*)?$ Rewrite $1/$2 Continue
+	Match ^([^?]*)/<?=$v2;?>(\?.*)?$ Rewrite $1/$2 Continue
 }
 
 UrlToolkit {
 	ToolkitID = permalink
 	RequestURI exists Return
+	RequestURI isfile Return
 	## process for 'special dirs' of Kloxo-MR
-	Match ^/(stats|awstats|awstatscss|awstats)(/|$) Return
-	## process for 'special dirs' of Kloxo-MR
-	Match ^/(cp|error|webmail|__kloxo|kloxo|kloxononssl|cgi-bin)(/|$) Return
+	Match ^/(stats|cp|error|webmail|__kloxo|kloxo|kloxononssl|cgi-bin)(/|$) Return
 	Match ^/(css|files|images|js)(/|$) Return
 	Match ^/(favicon.ico|robots.txt|sitemap.xml)$ Return
+	Match ^/.well-known/(.*) Return
 	Match /(.*)\?(.*) Rewrite /index.php?path=$1&$2
 	Match .*\?(.*) Rewrite /index.php?$1
 	Match .* Rewrite /index.php
 }
-<?php
-foreach ($userlist as &$user) {
-	$userinfo = posix_getpwnam($user);
-
-	if (!$userinfo) { continue; }
-?>
 
 FastCGIserver {
-	FastCGIid = php_for_<?php echo $user; ?>
+	FastCGIid = php_apache
 
-	ConnectTo = /opt/configs/php-fpm/sock/<?php echo $user; ?>.sock
+	ConnectTo = /opt/configs/php-fpm/sock/php-apache.sock
 	Extension = php
-	SessionTimeout = 600
+	SessionTimeout = <?=$timeout;?>
+
 }
-<?php
-}
-?>
 
 FastCGIserver {
-	FastCGIid = php_for_apache
-	ConnectTo = /opt/configs/php-fpm/sock/apache.sock
-	Extension = php
-	SessionTimeout = 600
+	FastCGIid = cgi_apache
+
+	ConnectTo = /tmp/fcgiwrap.sock
+	Extension = pl,cgi,py,rb,shtml
+	SessionTimeout = <?=$timeout;?>
+
 }
 
 CGIhandler = /usr/bin/perl:pl
@@ -120,25 +147,25 @@ foreach ($certnamelist as $ip => $certname) {
 ?>
 
 Binding {
-	BindingId = port_<?php echo $portnames[$count]; ?>
+	BindingId = port_<?=$portnames[$count];?>
 
-	Port = <?php echo $ports[$count]; ?>
+	Port = <?=$ports[$count];?>
 
 	#Interface = 0.0.0.0
 	MaxKeepAlive = 120
-	TimeForRequest = 600
-	MaxRequestSize = 102400
-	## not able more than 100MB; hiawatha-9.3-2+ able until 2GB
-	MaxUploadSize = 2000
+	TimeForRequest = <?=$timeout;?>
+
+	MaxRequestSize = 2096128
+	MaxUploadSize = 2047
 <?php
 		if ($count !== 0) {
 ?>
 
-	TLScertFile = <?php echo $certname; ?>.pem
+	TLScertFile = <?=$certname;?>.pem
 <?php
 			if (file_exists("{$certname}.ca")) {
 ?>
-	RequiredCA = <?php echo $certname; ?>.ca
+	#RequiredCA = <?=$certname;?>.ca
 <?php
 			}
 		}
@@ -150,43 +177,46 @@ Binding {
 }
 ?>
 
+
+Alias = /.well-known:/var/run/letsencrypt/.well-known
+
 ### 'default' config
 set var_user = apache
 
 Hostname = 0.0.0.0, ::
-WebsiteRoot = <?php echo $defaultdocroot; ?>
+WebsiteRoot = <?=$defaultdocroot;?>
+
 
 EnablePathInfo = yes
-UseGZfile = yes
-FollowSymlinks = no
+## MR -- need symlink because make possible access to http://ip/domainname
+FollowSymlinks = yes
 
-TimeForCGI = 600
+TimeForCGI = <?=$timeout;?>
 
-Alias = /error:/home/kloxo/httpd/error
-ErrorHandler = 401:/error/401.html
-ErrorHandler = 403:/error/403.html
-ErrorHandler = 404:/error/404.html
-ErrorHandler = 501:/error/501.html
-ErrorHandler = 503:/error/503.html
+
+UseLocalConfig = yes
+
+<?=$error_handler;?>
+
 <?php
-		if ($reverseproxy) {
+if ($reverseproxy) {
 ?>
 
-IgnoreDotHiawatha = yes
-UseToolkit = block_shellshock, findindexfile
-#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
+UseToolkit = block_shellshock, block_httpoxy
+
+#ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ <?=$timeout;?> keep-alive
+ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?> keep-alive
 <?php
-		} else {
+} else {
 ?>
 
 #UserDirectory = public_html
 #UserWebsites = yes
 
-UseFastCGI = php_for_var_user
-UseToolkit = block_shellshock, findindexfile, permalink
+UseFastCGI = php_var_user
+UseToolkit = block_shellshock, block_httpoxy, findindexfile, permalink
 <?php
-		}
+}
 ?>
 
 #StartFile = index.php

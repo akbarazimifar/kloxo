@@ -25,7 +25,7 @@ abstract class Lxclient extends Lxdb
 	static $__desc_resourceplan_used = array("", "", "plan_name");
 	static $__desc_text_comment = array("t", "", "comments");
 	static $__desc_extra_email_f = array("", "", "extra_email");
-	static $__desc_disable_per = array("", "", "disable_when_usage_reaches_(percentage)_");
+	static $__desc_disable_per = array("", "", "disable_when_usage_reaches");
 
 	static $__desc_old_password_f = array("n", "", "old_password");
 
@@ -279,7 +279,7 @@ abstract class Lxclient extends Lxdb
 	{
 		$this->realpass = $param['password'];
 		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password']);
+		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
 		
 		return $param;
 	}
@@ -314,7 +314,7 @@ abstract class Lxclient extends Lxdb
 		}
 		
 		$this->boxpos["{$class}_show"] = $ret;
-		
+
 		return $param;
 	}
 
@@ -339,6 +339,9 @@ abstract class Lxclient extends Lxdb
 	function replace_keywords($text, $object)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
+
+	/*
+		// MR -- disable this code because change to use .tpl model code (php parse)
 
 		$text = str_replace("%name%", "$object->nname\n", $text);
 		$text = str_replace("%clientname%", $object->getParentName() . "\n", $text);
@@ -409,6 +412,43 @@ abstract class Lxclient extends Lxdb
 		}
 		
 		return implode("\n", $total);
+	*/
+
+		$input = array();
+
+		$input['name'] = $object->nname;
+		$input['clientname'] = $object->getParentName();
+		$input['password'] = $object->realpass;
+
+		if ($sgbl->isKloxo()) {
+			$input['default_domain'] = $object->default_domain;
+		}
+
+		$input['ipaddress'] = $input['masterserver'] = getFQDNforServer('localhost');
+
+		$string = null;
+
+		foreach ($this->priv as $k => $v) {
+			if ($this->isQuotaVariable($k)) {
+				$var = get_v_descr($this, $k);
+				$var = get_form_variable_name($var);
+				$string .= "{$var}: {$v}\n";
+			}
+		}
+
+		$input['quota'] = $string;
+
+		$gen = $login->getObject('general');
+
+		$a = $gen->portconfig_b->sslport;
+		$b = $gen->portconfig_b->nonsslport;
+
+		$input['sslport'] = isset($a) ? $a : $sgbl->__var_prog_ssl_port;
+		$input['nonsslport'] = isset($b) ? $b : $sgbl->__var_prog_port;
+
+		$tplparse = getParseInlinePhp($text, $input);
+
+		return $tplparse;
 	}
 
 	function isSlave()
@@ -681,9 +721,9 @@ abstract class Lxclient extends Lxdb
 		if ($res) {
 			throw new lxException($login->getThrow('already_exists'), '', $this->nname);
 		}
-		
+
 		$gbl->__this_redirect = '/display.php?frm_action=resource';
-		
+
 		return $param;
 	}
 
@@ -738,7 +778,7 @@ abstract class Lxclient extends Lxdb
 
 				$vlist['disable_notify'] = array('f', array('on', 'off'));
 
-				if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/disablenotifyforquota.flg")) {
+				if (file_exists("../etc/flag/disablenotifyforquota.flg")) {
 					$this->setDefaultValue('disable_notify', 'on');
 				}
 
@@ -830,10 +870,15 @@ abstract class Lxclient extends Lxdb
 		}
 		
 		$url = "a=list&c=utmp";
-		$ilist['Last Login'] = "_lxinurl:$url:{$res[1]['ip_address']}:";
+	//	$ilist['Last Login'] = "_lxinurl:$url:{$res[1]['ip_address']}:";
+		$ilist[$this->getKeywordUc('info_lastloginip')] = "_lxinurl:$url:{$res[1]['ip_address']}:";
+
+		$ilist[$this->getKeywordUc('info_currentloginip')] = getRemoteIp();
+
 	//	$date = @ date('h.i,d-M-Y', $res[1]['logintime']);
 		$date = @ date('Y-m-d H.i.s', $res[1]['logintime']);
-		$ilist['Last Login Time'] = "_lxinurl:$url:$date:";
+	//	$ilist['Last Login Time'] = "_lxinurl:$url:$date:";
+		$ilist[$this->getKeywordUc('info_lastlogintime')] = "_lxinurl:$url:$date:";
 	}
 
 	function updatechange_plan($param)
@@ -916,7 +961,7 @@ abstract class Lxclient extends Lxdb
 		
 		$this->__old_password = $this->password;
 		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password']);
+		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
 		
 		// Hack hack... this is due the forced security password change in the admin. Most likely the referal url, 
 		// to which it is redirected, is empty. So if you are changing the login password, you can anyway redirect to 'show';
@@ -930,9 +975,9 @@ abstract class Lxclient extends Lxdb
 	function updateDisable_per($param)
 	{
 		if ($param['disable_notify'] === 'on') {
-			touch('/usr/local/lxlabs/kloxo/etc/flag/disablenotifyforquota.flg');
+			touch('../etc/flag/disablenotifyforquota.flg');
 		} else {
-			unlink('/usr/local/lxlabs/kloxo/etc/flag/disablenotifyforquota.flg');
+			unlink('../etc/flag/disablenotifyforquota.flg');
 		}
 
 		return $param;

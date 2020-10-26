@@ -1,5 +1,15 @@
 #!/bin/sh
 
-list=(qmail)
+if [ -f /script/custom.restart-list.inc ] ; then
+	. /script/custom.restart-list.inc
+else
+	. /script/restart-list.inc
+fi
 
-. /script/restart.inc
+list=${list_mail[*]}
+
+if [ -f /script/custom.restart.inc ] ; then
+	. /script/custom.restart.inc
+else
+	. /script/restart.inc
+fi

@@ -6,88 +6,33 @@ class dns__ extends lxDriverClass
 	{
 	}
 
-	static function unInstallMeTrue($driver = null)
+	static function unInstallMeTrue($drivertype = null)
 	{
-		if ($driver === 'bind') {
-			$driveralias = 'named';
-		} else {
-			$driveralias = $driver;
-		}
 
-		setRpmRemoved($driver);
-
-		if ($driver === 'bind') {
-			setRpmInstalled("bind-utils");
-			exec("killall -9 named");
-		}
-
-		if ($driver === 'maradns') {
-			$a = array('', '.deadwood', '.zoneserver');
-
-			foreach ($a as $v) {
-				exec("service {$driveralias}{$v} stop");
-				lunlink("/etc/init.d/{$driveralias}{$v}");
-			}
-		} else {
-			lunlink("/etc/init.d/{$driveralias}");
-		}
+		setAllInactivateDnsServer();
 	}
 
-	static function installMeTrue($driver = null)
+	static function installMeTrue($drivertype = null)
 	{
-		if ($driver === 'bind') {
-			$driveralias = 'named';
-		} else {
-			$driveralias = $driver;
-		}
+		if ($drivertype === 'none') { return; }
 
-		setRpmInstalled($driver);
+		$list = getDnsDriverList($drivertype);
 
-		if ($driver === 'bind') {
-		//	setRpmInstalled("{$driver}-utils");
-			setRpmRemoved("{$driver}-chroot");
-			setRpmInstalled("{$driver}-libs");
-			
-			if (!file_exists("/var/log/named")) {
-				exec("mkdir -p /var/log/named");
-			}
-		} elseif ($driver === 'pdns') {
-			setRpmInstalled("{$driver}-backend-mysql");
-			setRpmInstalled("{$driver}-tools");
-			setRpmInstalled("{$driver}-geo");
-		} elseif ($driver === 'mydns') {
-			setRpmInstalled("{$driver}-mysql");
-		}
+		foreach ($list as $k => $v) {
+			if ($v === 'none') { continue; }
 
-
-		$initfile = getLinkCustomfile("/opt/configs/{$driver}/etc/init.d", "{$driveralias}.init");
-
-		if (file_exists($initfile)) {
-			lxfile_cp($initfile, "/etc/init.d/{$driveralias}");
-			chmod("/etc/init.d/{$driveralias}", '0755');
-		}
-
-		setCopyDnsConfFiles($driver);
-
-		if ($driver === 'djbdns') {
-			lxshell_return("/etc/init.d/djbdns", "setup");
-		} elseif ($driver === 'nsd') {
-			$path = "/opt/configs/nsd/conf/defaults";
-
-			if (!file_exists("{$path}/{$driver}.master.conf")) {
-				touch("{$path}/{$driver}.master.conf");
+			if ($v === 'bind') {
+				$a = 'named';
+			} elseif ($v === 'yadifa') {
+				$a = 'yadifad';
+			} else {
+				$a = $v;
 			}
 
-			if (!file_exists("{$path}/nsd.slave.conf")) {
-				touch("{$path}/nsd.slave.conf");
-			}
+			exec("chkconfig {$a} on >/dev/null 2>&1");
 		}
-
-		lxshell_return("chkconfig", $driveralias, "on");
-
-		// MR -- disable here because execute in switchProgramPost()
-	//	createRestartFile($driveralias);
-	//	createRestartFile("restart-dns");
+	
+		createRestartFile("restart-dns");
 	}
 
 	static function getActiveDriver()
@@ -123,6 +68,8 @@ class dns__ extends lxDriverClass
 		$dnsdrvlist = getAllDnsDriverList();
 
 		foreach ($dnsdrvlist as $v) {
+			if ($v === 'none') { continue; }
+
 			if (($v === 'bind') || ($v === 'yadifa')) { continue; }
 
 			$tplsource = getLinkCustomfile("/opt/configs/{$v}/tpl", "domains.conf.tpl");
@@ -148,8 +95,11 @@ class dns__ extends lxDriverClass
 	{
 		$input = array();
 
+		// MR -- need to make sure for dnsnotify
+		$input['driver'] = self::getActiveDriver();
+
 		$ip_dns = $this->getIps();
-		$ip_hostname = array(gethostbyname(php_uname('n')));
+	//	$ip_hostname = array(gethostbyname(php_uname('n')));
 		// MR -- IP list without hostname IP
 	//	$input['ips'] = array_diff($ip_dns, $ip_hostname);
 		$input['ips'] = $ip_dns;
@@ -165,6 +115,8 @@ class dns__ extends lxDriverClass
 		$rlist = $this->getReverseList();
 
 		foreach ($dnsdrvlist as $v) {
+			if ($v === 'none') { continue; }
+
 			$input['domains'] = $mlist;
 			$tplsource = getLinkCustomfile("/opt/configs/{$v}/tpl", "list.master.conf.tpl");
 			$tpl = file_get_contents($tplsource);
@@ -191,6 +143,8 @@ class dns__ extends lxDriverClass
 		// MR -- IP list without hostname IP
 		$input['ips'] = array_diff($ip_dns, $ip_hostname);
 	*/
+		// MR -- need to make sure for dnsnotify
+		$input['driver'] = self::getActiveDriver();
 
 		$input['ips'] = $this->getIps();
 		$input['serverips'] = $this->getServerIps();
@@ -200,6 +154,8 @@ class dns__ extends lxDriverClass
 		$dnsdrvlist = getAllDnsDriverList();
 
 		foreach ($dnsdrvlist as $v) {
+			if ($v === 'none') { continue; }
+
 			$tplsource = getLinkCustomfile("/opt/configs/{$v}/tpl", "list.transfered.conf.tpl");
 
 			$tpl = file_get_contents($tplsource);
@@ -291,6 +247,10 @@ class dns__ extends lxDriverClass
 
 	function dosyncToSystemPost()
 	{
-		// MR -- no need action
+		$driver = self::getActiveDriver();
+
+		if (($driver !== 'pdns') && ($driver !== 'mydns')) {
+			createRestartFile("restart-dns");
+		}
 	}
 }

@@ -1,28 +1,10 @@
 <?php
-/*
-	// MR -- copy this function and caller to redirect-ssl.php
-	// or you can use .htaccess if using apache or -proxy
-	
-	// RewriteEngine On
-	// RewriteCond %{HTTPS} off
-	// RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R,L]
-
-	function redirect_to_ssl() {
-		if(!isset($_SERVER["HTTPS"])) {
-			$host = $_SERVER["HTTP_HOST"];
-			$requesturi = $_SERVER["REQUEST_URI"];
-
-			header("HTTP/1.1 301 Moved Permanently");
-			header("Location: https://{$host}{$requesturi}");
-			exit();
-		}
-	}
-
-	// MR -- enabled in custom.index.php for redirect to https
-	redirect_to_ssl();
-*/
-
 	ini_set("display_errors","1");
+
+//	if(!isset($_SESSION)) {
+	if (session_id() == "") {
+		session_start();
+	}
 
 	if (file_exists("./custom-index.php")) {
 		include_once "./custom-index.php";
@@ -71,30 +53,46 @@
 			$title = "Kloxo-MR Page";
 		}
 
-		$bckgrnd = "\tbackground-image: url(./images/abstract.jpg);";
+		if (basename(getcwd()) === 'login') {
 
-		$path = "../theme/background";
+			$selimg = './images/abstract.jpg';
 
-		// MR -- trick to make random background for login
-		if ((file_exists($path)) && (!file_exists("./.norandomimage"))) {
-			try {
-				$dirs = glob("{$path}/*", GLOB_MARK);
+			$path = "../theme/background";
 
-				if ($dirs) {
-					$count = count($dirs);
-					$selnum = rand(0, ($count - 1));
+			// MR -- trick to make random background for login
+			if ((file_exists($path)) && (!file_exists("./.norandomimage"))) {
+				try {
+					$dirs = glob("{$path}/*", GLOB_MARK);
 
-					$selimg = $dirs[$selnum];
+					if ($dirs) {
+						$count = count($dirs);
+						$selnum = rand(0, ($count - 1));
 
-					$bckgrnd = "\tbackground-image: url({$selimg});\n".
-						"\tbackground-size: cover;\n".
-						"\tbackground-attachment: fixed;";
+						if ((isset($_SESSION['last_login_time'])) && (isset($_SESSION['num_login_fail']))) {
+							if ($_SESSION['num_login_fail'] == 5) {
+								$selimg = "{$path}/abstract_003.jpg";
+							} else {
+								$selimg = $dirs[$selnum];
+							}
+						} else {
+							$selimg = $dirs[$selnum];
+						}
+					}
+				} catch (Exception $e) { }
+			} else {
+				$c = trim(file_get_contents("./.norandomimage"));
+					
+				if ($c !== '') {
+					$selimg = "{$path}/{$c}";
 				}
-			} catch (Exception $e) {
-				$bckgrnd = $bckgrnd;
 			}
-		}
 
+			$bckgrnd = "\tbackground-image: url({$selimg});\n".
+				"\tbackground-size: cover;\n".
+				"\tbackground-attachment: fixed;";
+		} else {
+			$bckgrnd = "\tbackground-image: url(./images/abstract.jpg);";
+		}
 ?>
 	<title><?= $title; ?></title>
 <style>
@@ -165,7 +163,7 @@ table.content_title td {
 <table class="header">
 	<tr>
 		<td width="100%"><img style="margin:5px; padding:5px; height:50px" class="logo" src="<?php echo $logo_url; ?>" alt="hosting-logo"></td>
-		<td><a href="http://mratwork.com/work/" title="Go to Kloxo-MR website"><img style="margin:5px; padding:5px; height:50px" class="logo" src="./images/kloxo-mr.png" alt="kloxo-mr-logo"></a></td>
+		<td><a href="//mratwork.com/work/" title="Go to Kloxo-MR website"><img style="margin:5px; padding:5px; height:50px" class="logo" src="./images/kloxo-mr.png" alt="kloxo-mr-logo"></a></td>
 	</tr>
 </table>
 <table class="content">

@@ -1,10 +1,81 @@
-### begin - web of '<?php echo $domainname; ?>' - do not remove/modify this line
+<?php
+$altconf = "/opt/configs/hiawatha/conf/customs/{$domainname}.conf";
 
-
-## MR - NOTE:
-## add 'header("X-Hiawatha-Cache: 10");' to index.php
+if (file_exists($altconf)) {
+	print("## MR - Use '{$altconf}' instead this file");
+	return;
+}
+?>
+### begin - web of '<?= $domainname; ?>' - do not remove/modify this line
 
 <?php
+
+$altconf = "/opt/configs/hiawatha/conf/customs/{$domainname}.conf";
+
+if (file_exists($altconf)) {
+	print("## MR - Use {$altconf} instead this file");
+	return;
+}
+
+$webdocroot = $rootpath;
+
+$mfile = "{$webdocroot}/{$microcache_insert_into}";
+
+if (file_exists($mfile)) {
+	@exec("sed -i '/X-Hiawatha-Cache:/d' {$mfile}");
+
+	if (intval($microcache_time) > -1) {
+		@exec("sed -i '1s/^/<" . "?php header(\"X-Hiawatha-Cache: {$microcache_time}\"); " . "?>\\n/' {$mfile}");
+	} else {
+		@exec("sed -i '/header(\"X-Hiawatha-Cache:/d' {$mfile}");
+	}
+}
+
+if ($general_header) {
+	$gh = explode("\n", trim($general_header, "\n"));
+
+	$general_header_text = "";
+
+	foreach ($gh as $k => $v) {
+		if (stripos($v, 'x-powered-by') !== false) {
+			// no action
+		} else {
+			$v = str_replace(" ", "", str_replace("\"", "", str_replace(" \"", ":", $v)));
+			$general_header_text .= "\tCustomHeader = {$v}";
+		}
+	}
+
+	$general_header_text .= "\tCustomHeader = X-Supported-By:Kloxo-MR 7.0";
+}
+
+if ($https_header) {
+	$hh = explode("\n", trim($https_header, "\n"));
+
+	$https_header_text = "";
+
+	foreach ($hh as $k => $v) {
+		$v = str_replace(" ", "", str_replace("\"", "", str_replace(" \"", ":", $v)));
+
+		$https_header_text .= "\tCustomHeader = {$v}";
+	}
+}
+
+$error_handler = "Alias = /error:/home/kloxo/httpd/error
+\tErrorHandler = 401:/error/401.html
+\tErrorHandler = 403:/error/403.html
+\tErrorHandler = 404:/error/404.html
+\tErrorHandler = 501:/error/501.html
+\tErrorHandler = 503:/error/503.html";
+
+if (!isset($phpselected)) {
+	$phpselected = 'php';
+}
+
+if (!isset($timeout)) {
+	$timeout = '300';
+}
+
+$domclean = str_replace('-', '_', str_replace('.', '_', $domainname));
 
 if (($webcache === 'none') || (!$webcache)) {
 	$ports[] = '80';
@@ -14,13 +85,18 @@ if (($webcache === 'none') || (!$webcache)) {
 	$ports[] = '8443';
 }
 
+$reverseports = array('30080', '30443');
+$protocols = array('http', 'https');
+
 $portnames = array("nonssl", "ssl");
 
 foreach ($certnamelist as $ip => $certname) {
-	if (file_exists("/home/kloxo/client/{$user}/ssl/{$domainname}.key")) {
-		$certnamelist[$ip] = "/home/kloxo/client/{$user}/ssl/{$domainname}";
+	$sslpath = "/home/kloxo/ssl";
+
+	if (file_exists("{$sslpath}/{$domainname}.key")) {
+		$certnamelist[$ip] = "{$sslpath}/{$domainname}";
 	} else {
-		$certnamelist[$ip] = "/home/kloxo/httpd/ssl/{$certname}";
+		$certnamelist[$ip] = "{$sslpath}/{$certname}";
 	}
 }
 
@@ -42,7 +118,7 @@ if ($serveraliases) {
 if ($parkdomains) {
 	foreach ($parkdomains as $pk) {
 		$pa = $pk['parkdomain'];
-		$serveralias .= ", {$pa} www.{$pa}";
+		$serveralias .= ", {$pa}, www.{$pa}";
 	}
 }
 
@@ -61,8 +137,11 @@ $webmailremote = str_replace("https://", "", $webmailremote);
 
 $cpdocroot = "/home/kloxo/httpd/cp";
 
-if ($indexorder) {
-	$indexorder = implode(', ', $indexorder);
+if ($statsapp === 'webalizer') {
+	$statsdocroot = "/home/httpd/{$domainname}/webstats";
+} else {
+	$statsdocroot_base = "/home/kloxo/httpd/awstats/wwwroot";
+	$statsdocroot = "{$statsdocroot_base}/cgi-bin";
 }
 
 if ($blockips) {
@@ -101,102 +180,181 @@ $disabledocroot = "/home/kloxo/httpd/disable";
 
 $domcleaner = str_replace('-', '_', str_replace('.', '_', $domainname));
 
-if (!$reverseproxy) {
-	if ($statsapp === 'awstats') {
-		if ($statsprotect) {
+if ($disabled) {
+	$cpdocroot = $webmaildocroot = $webdocroot = $disabledocroot;
+}
+
+//if (!$reverseproxy) {
 ?>
 
 Directory {
-	Path = /home/kloxo/httpd/awstats/wwwroot/cgi-bin
-	PasswordFile = basic:/home/httpd/<?php echo $domainname ?>/__dirprotect/__stats
-}
+	DirectoryID = cache_expire_<?=$domclean;?>
 
+	Path = /
 <?php
-		}
-	} elseif ($statsapp === 'webalizer') {
-		if ($statsprotect) {
+	if (intval($static_files_expire) > -1) {
 ?>
-
-Directory {
-	Path = /home/httpd/<?php echo $domainname; ?>/webstats
-	PasswordFile = basic:/home/httpd/<?php echo $domainname ?>/__dirprotect/__stats
-}
-
+	Extensions = jpeg, jpg, gif, png, ico, css, js, pdf
+	ExpirePeriod <?=$static_files_expire;?> days
 <?php
-		}
+	} else {
+?>
+	# No static files expire
+<?php
 	}
-
-	if ($dirprotect) {
-		foreach ($dirprotect as $k) {
-			$protectpath = $k['path'];
-			$protectauthname = $k['authname'];
-			$protectfile = str_replace('/', '_', $protectpath) . '_';
 ?>
-
-Directory {
-	Path = /<?php echo $protectpath; ?>
-
-	PasswordFile = basic:/home/httpd/<?php echo $domainname; ?>/__dirprotect/<?php echo $protectfile; ?>
-
 }
-
-<?php
-		}
-	}
-}
-
-if ($webmailremote) {
-?>
-UrlToolkit {
-	ToolkitID = redirect_<?php echo str_replace('.', '_', $webmailremote); ?>
-
-	#RequestURI exists Return
-	Match ^/(.*) Redirect http://<?php echo $webmailremote; ?>/$1
-}
-<?php
-}
-?>
-
-UrlToolkit {
-	ToolkitID = redirect_<?php echo $domcleaner; ?>
-
-	#RequestURI exists Return
-<?php
-if ($redirectionremote) {
-	foreach ($redirectionremote as $rr) {
-		if ($rr[2] === 'both') {
-?>
-	Match /^<?php echo $rr[0]; ?>/(.*) Redirect <?php echo $protocol; ?><?php echo $rr[1]; ?>/$1
-<?php
-		} else {
-			$protocol2 = ($rr[2] === 'https') ? "https://" : "http://";
-?>
-	Match ^/<?php echo $rr[0]; ?>/(.*) Redirect <?php echo $protocol2; ?><?php echo $rr[1]; ?>/$1
-<?php
-		}
-	}
-}
-?>
-	Match ^/kloxo(/|$) Redirect https://<?php echo $domainname; ?>:<?php echo $kloxoportssl; ?>/$1
-	Match ^/kloxononssl(/|$) Redirect http://<?php echo $domainname; ?>:<?php echo $kloxoportnonssl; ?>/$1
-	Match ^/webmail(/|$) Redirect http://webmail.<?php echo $domainname; ?>/$1
-	Match ^/cp(/|$) Redirect http://cp.<?php echo $domainname; ?>/$1
 <?php
 if ($enablestats) {
-	if ($statsapp === 'awstats') {
 ?>
-	Match ^/stats(/|$) Redirect http://<?php echo $domainname; ?>/awstats/awstats.pl
+
+Directory {
+	DirectoryId = stats_dir_<?=$domclean;?>
+
+	Path = /
+<?php
+	if ($statsprotect) {
+?>
+	PasswordFile = basic:/home/httpd/<?=$domainname;?>/__dirprotect/__stats
+<?php
+	}
+?>
+}
+<?php
+}
+
+if ($dirprotect) {
+	foreach ($dirprotect as $k) {
+		$protectpath = $k['path'];
+		$protectauthname = $k['authname'];
+		$protectfile = str_replace('/', '_', $protectpath) . '_';
+?>
+
+Directory {
+	Path = /<?=$protectpath;?>
+
+	PasswordFile = basic:/home/httpd/<?=$domainname;?>/__dirprotect/<?=$protectfile;?>
+
+}
+
 <?php
 	}
 }
-
-if ($wwwredirect) {
+//}
 ?>
 
-	Match ^/(.*) Redirect http://www.<?php echo $domainname; ?>/$1
+UrlToolkit {
+	ToolkitID = findindexfile_<?=$domcleaner;?>
+
+<?php
+$v2 = "";
+
+foreach ($indexorder as $k => $v) {
+?>
+	Match ^([^?]*)/<?=$v2;?>(\?.*)?$ Rewrite $1/<?=$v;?>$2 Continue
+	RequestURI isfile Return
+<?php
+	$v2 = str_replace(".", "\.", $v);
+}
+?>
+	Match ^([^?]*)/<?=$v2;?>(\?.*)?$ Rewrite $1/$2 Continue
+}
+<?php
+if ($webmailremote) {
+	foreach ($protocols as $k => $v) {
+?>
+
+UrlToolkit {
+	ToolkitID = redirect_<?=str_replace('.', '_', $webmailremote);?>_<?=$v;?>
+
+	#RequestURI exists Return
+	Match ^/(.*) Redirect <?=$v;?>://<?=$webmailremote;?>/$1
+}
+<?php
+	}
+}
+?>
+
+UrlToolkit {
+	ToolkitID = cgi_<?=$domcleaner;?>
+
+	Match ^/.*\.(pl|cgi|py)(/|$) UseFastCGI cgi_apache
+}
+<?php
+foreach ($protocols as $k => $v) {
+?>
+
+UrlToolkit {
+	ToolkitID = redirect_<?=$domcleaner;?>_<?=$v;?>
+
+	#RequestURI exists Return
+<?php
+	if ($redirectionremote) {
+		foreach ($redirectionremote as $rr) {
+			if ($rr[2] === 'both') {
+				if ($rr[0] === '/') {
+					$rr0 = '^/(.*)';
+				} else {
+					$rr0 = '^/'.$rr[0].'/(.*)';
+				}
+?>
+	Match <?=$rr0;?> Redirect <?=$v;?>://<?=$rr[1];?>/$1
+<?php
+			} else {
+				$protocol2 = ($rr[2] === 'https') ? "https" : "http";
+?>
+	Match <?=$rr0;?> Redirect <?=$protocol2;?>://<?=$rr[1];?>/$1
+<?php
+			}
+		}
+	}
+?>
+	Match ^/kloxo(|/(.*))$ Redirect <?=$v;?>://<?=$domainname;?>:<?=$kloxoportssl;?>/$1
+	Match ^/webmail(|/(.*))$ Redirect <?=$v;?>://webmail.<?=$domainname;?>/$1
+	Match ^/cp(|/(.*))$ Redirect <?=$v;?>://cp.<?=$domainname;?>/$1
+
+	Match ^/stats(|/(.*))$ Redirect <?=$v;?>://stats.<?=$domainname;?>/$1
+<?php
+	if ($wwwredirect) {
+?>
+
+	Match ^/(.*)$ Redirect <?=$v;?>://www.<?=$domainname;?>/$1
+<?php
+	}
+?>
+}
+<?php
+	if ($statsapp === 'awstats') {
+?>
+
+UrlToolkit {
+	ToolkitID = redirect_stats_<?=$domcleaner;?>_<?=$v;?>
+
+	#Match .* Rewrite /awstats.pl?config=<?=$domainname;?>
+
+}
+<?php
+	}
+}
+?>
+
+FastCGIserver {
+	FastCGIid = php_<?=$domclean;?>
+
+<?php
+if ($disabled) {
+?>
+	ConnectTo = /opt/configs/php-fpm/sock/<?=$phpselected;?>-apache.sock
+<?php
+} else {
+?>
+	ConnectTo = /opt/configs/php-fpm/sock/<?=$phpselected;?>-<?=$user;?>.sock
 <?php
 }
 ?>
+	Extension = php
+	SessionTimeout = <?=$timeout;?>
+
 }
 
 <?php
@@ -207,378 +365,360 @@ foreach ($certnamelist as $ip => $certname) {
 
 	//	if ($count !== 0) { continue; }
 
-		$protocol = ($count === 0) ? "http://" : "https://";
+		$protocol = ($count === 0) ? "http" : "https";
 
-		if ($disabled) {
 ?>
 
-## cp for '<?php echo $domainname; ?>'
+## cp for '<?=$domainname;?>'
 VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
+	RequiredBinding = port_<?=$portnames[$count];?>
 
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
 
 <?php
-			if ($count !== 0) {
+		if ($count !== 0) {
 ?>
-	TLScertFile = <?php echo $certname; ?>.pem
+
+	TLScertFile = <?=$certname;?>.pem
 <?php
-				if (file_exists("{$certname}.ca")) {
+			if (file_exists("{$certname}.ca")) {
 ?>
-	RequiredCA = <?php echo $certname; ?>.ca
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
 <?php
-				}
+			}
 ?>
+
 	SecureURL = no
-	#MinTLSversion = TLS1.0
+	#MinTLSversion = 1.0
 <?php
-			}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = cp.<?php echo $domainname; ?>
-
-
-	WebsiteRoot = <?php echo $disabledocroot; ?>
-
-	EnablePathInfo = yes
-<?php
-			if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-			} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-			}
-?>
-
-	#StartFile = index.php
-}
-
-
-## webmail for '<?php echo $domainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
-
-<?php
-			if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-				if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-				}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-			}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $domainname; ?>
-
-
-	WebsiteRoot = <?php echo $disabledocroot; ?>
-
-
-	EnablePathInfo = yes
-<?php
-			if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-			} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-			}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-		} else {
-?>
-
-## cp for '<?php echo $domainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
-
-<?php
-			if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-				if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-				}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-			}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = cp.<?php echo $domainname; ?>
-
-
-	WebsiteRoot = <?php echo $cpdocroot; ?>
-
-
-	EnablePathInfo = yes
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-			if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-			} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-			}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-			if ($webmailremote) {
-?>
-
-## webmail for '<?php echo $domainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
-
-<?php
-				if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-					if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-					}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-				}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $domainname; ?>
-
-
-	WebsiteRoot = <?php echo $webmaildocroot; ?>
-
-
-	useToolkit = block_shellshock, redirect_<?php echo str_replace('.', '_', $webmailremote); ?>
-
-				}
-
-<?php
-			} else {
-?>
-
-## webmail for '<?php echo $domainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
-
-<?php
-				if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-					if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-					}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-				}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $domainname; ?>
-
-
-	WebsiteRoot = <?php echo $webmaildocroot; ?>
-
-
-	EnablePathInfo = yes
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-				if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-				} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-				}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-			}
 		}
 ?>
 
-## web for '<?php echo $domainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
+	set var_user = apache
 
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+	FollowSymlinks = no
+
+	Hostname = cp.<?=$domainname;?>
+
+
+	WebsiteRoot = <?=$cpdocroot;?>
+
+
+	EnablePathInfo = yes
+
+	TimeForCGI = <?=$timeout;?>
+
+
+	<?=$error_handler;?>
+
+
+	ExecuteCGI = yes
+<?php
+/*
+		if (($reverseproxy) && ($webselected === 'back-end')) {
+?>
+
+	UseLocalConfig = no
+
+	UseToolkit = block_shellshock, block_httpoxy
+
+	#ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	#ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+<?php
+		} else {
+*/
+?>
+
+	UseLocalConfig = yes
+
+	UseFastCGI = php_apache
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>, permalink
+<?php
+//		}
+?>
+
+	#StartFile = index.php
+}
+
+
+## stats for '<?=$domainname;?>'
+VirtualHost {
+	RequiredBinding = port_<?=$portnames[$count];?>
+
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
+
+<?php
+		if ($count !== 0) {
+?>
+
+	TLScertFile = <?=$certname;?>.pem
+<?php
+			if (file_exists("{$certname}.ca")) {
+?>
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
+<?php
+			}
+?>
+
+	SecureURL = no
+	#MinTLSversion = 1.0
+<?php
+		}
+?>
+
+	set var_user = apache
+
+	FollowSymlinks = no
+
+	Hostname = stats.<?=$domainname;?>
+
+
+	WebsiteRoot = <?=$statsdocroot;?>
+
+<?php
+		if ($statsapp === 'awstats') {
+?>
+
+	Alias = /awstatscss:<?=$statsdocroot_base;?>/css
+	Alias = /awstatsicons:<?=$statsdocroot_base;?>/icon
+<?php
+		}
+?>
+
+	EnablePathInfo = yes
+
+	TimeForCGI = <?=$timeout;?>
+
+
+	<?=$error_handler;?>
+
+
+	ExecuteCGI = yes
+<?php
+/*
+		if (($reverseproxy) && ($webselected === 'back-end')) {
+?>
+
+	UseLocalConfig = no
+
+	UseToolkit = block_shellshock, block_httpoxy
+
+	#ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+<?php
+		} else {
+*/
+?>
+
+	UseLocalConfig = yes
+
+	UseFastCGI = php_apache
+<?php
+			if ($statsapp === 'awstats') {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>, redirect_stats_<?=$domcleaner;?>_<?=$protocol;?>
+
+<?php
+			} else {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>
+
+<?php
+			}
+//		}
+?>
+	UseDirectory = stats_dir_<?=$domclean;?>
+
+
+	#StartFile = index.php
+}
+
+## webmail for '<?=$domainname;?>'
+VirtualHost {
+	RequiredBinding = port_<?=$portnames[$count];?>
+
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
+
+<?php
+		if ($count !== 0) {
+?>
+
+	TLScertFile = <?=$certname;?>.pem
+<?php
+			if (file_exists("{$certname}.ca")) {
+?>
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
+<?php
+			}
+?>
+
+	SecureURL = no
+	#MinTLSversion = 1.0
+<?php
+		}
+?>
+
+	set var_user = apache
+
+	FollowSymlinks = no
+
+	Hostname = webmail.<?=$domainname;?>, mail.<?=$domainname;?>
+
+
+	WebsiteRoot = <?=$webmaildocroot;?>
+
+
+	EnablePathInfo = yes
+
+	TimeForCGI = <?=$timeout;?>
+
+
+	<?=$error_handler;?>
+
+
+	ExecuteCGI = yes
+<?php
+/*
+		if (($reverseproxy) && ($webselected === 'back-end')) {
+?>
+
+	UseLocalConfig = no
+
+	UseToolkit = block_shellshock, block_httpoxy
+
+	ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	#ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+<?php
+		} else {
+*/
+?>
+
+	UseLocalConfig = yes
+
+	UseFastCGI = php_apache
+<?php
+			if ($webmailremote) {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, redirect_<?=str_replace('.', '_', $webmailremote);?>_<?=$protocols[$count];?>
+
+<?php
+			} else {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>, permalink
+<?php
+			}
+//		}
+?>
+
+	#StartFile = index.php
+}
+
+
+## web for '<?=$domainname;?>'
+VirtualHost {
+	RequiredBinding = port_<?=$portnames[$count];?>
+
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
 
 <?php
 		if ($count !== 0) {
 			if ($enablessl) {
 ?>
-	TLScertFile = <?php echo $certname; ?>.pem
+
+	TLScertFile = <?=$certname;?>.pem
 <?php
 				if (file_exists("{$certname}.ca")) {
 ?>
-	RequiredCA = <?php echo $certname; ?>.ca
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
 <?php
 				}
 ?>
+
 	SecureURL = no
-	#MinTLSversion = TLS1.0
+	#MinTLSversion = 1.0
 <?php
 			}
 		}
 ?>
 
-	set var_user = <?php echo $user; ?>
+	set var_user = <?=$user;?>
 
-
-	UseGZfile = yes
 
 	FollowSymlinks = no
 <?php
+		if (($count === 0) && ($httpsredirect)) {
+?>
+
+	RequireTLS = yes
+<?php
+		}
+
 		if ($ip !== '*') {
 ?>
 
-	Hostname = <?php echo $domainname; ?>, <?php echo $serveralias; ?>, <?php echo $ip; ?>
+	Hostname = <?=$domainname;?>, <?=$serveralias;?>, <?=$ip;?>
 
 <?php
 		} else {
 ?>
 
-	Hostname = <?php echo $domainname; ?>, <?php echo $serveralias; ?>
+	Hostname = <?=$domainname;?>, <?=$serveralias;?>
 
 <?php
 		}
-
-		if ($disabled) {
-			$rootpath = $disabledocroot;
-		}
 ?>
 
-	WebsiteRoot = <?php echo $rootpath; ?>
+	WebsiteRoot = <?=$webdocroot;?>
+
+
+	UseDirectory = cache_expire_<?=$domclean;?>
 
 
 	EnablePathInfo = yes
 
-	Alias = /__kloxo:/home/<?php echo $user; ?>/kloxoscript
+	Alias = /__kloxo:/home/<?=$user;?>/kloxoscript
 <?php
 		if ($enablecgi) {
 ?>
 
-	WrapCGI = <?=$user;?>_wrapper
-
-	## MR -- don't use ScriptAlias but Alias because ScriptAlias not the same as in Apache
-	Alias = /cgi-bin:/home/<?php echo $user; ?>/<?php echo $domainname; ?>/cgi-bin
+	#WrapCGI = <?=$user;?>_wrapper
+	#UseToolkit = cgi_<?=$domcleaner;?>
 <?php
 		}
 
@@ -586,19 +726,20 @@ VirtualHost {
 			foreach ($redirectionlocal as $rl) {
 ?>
 
-	Alias = <?php echo $rl[0]; ?>:<?php echo $rootpath; ?><?php echo $rl[1]; ?>
+	Alias = <?=$rl[0];?>:<?=$webdocroot;?><?=$rl[1];?>
 
 <?php
 			}
 		}
 
-		if (!$reverseproxy) {
-			if ($enablestats) {
+		if ($enablestats) {
 ?>
 
-	AccessLogfile = /home/httpd/<?php echo $domainname ?>/stats/<?php echo $domainname ?>-custom_log
-	ErrorLogfile = /home/httpd/<?php echo $domainname ?>/stats/<?php echo $domainname ?>-error_log
+	AccessLogfile = /home/httpd/<?=$domainname;?>/stats/<?=$domainname;?>-custom_log
+	ErrorLogfile = /home/httpd/<?=$domainname;?>/stats/<?=$domainname;?>-error_log
 <?php
+		//	if ((!$reverseproxy) || (($reverseproxy) && ($webselected === 'front-end'))) {
+/*
 				if ($statsapp === 'awstats') {
 ?>
 
@@ -610,51 +751,60 @@ VirtualHost {
 				} elseif ($statsapp === 'webalizer') {
 ?>
 
-	Alias = /stats:/home/httpd/<?php echo $domainname; ?>/webstats
+	Alias = /stats:/home/httpd/<?=$domainname;?>/webstats
 <?php
 				}
-			}
-		}
-
-		if ($blockips) {
+*/
+				if ($blockips) {
 ?>
 
-	# BanlistMask = <?php echo $blockips; ?>
+			# BanlistMask = <?=$blockips;?>
 
-	AccessList = <?php echo $blockips; ?>
+			AccessList = <?=$blockips;?>
 
 <?php
-		}
+				}
 ?>
 
 	UserWebsites = yes
 
-	TimeForCGI = 600
+	TimeForCGI = <?=$timeout;?>
 
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
+
+	<?=$error_handler;?>
+
 
 	ExecuteCGI = yes
 <?php
-		if ($reverseproxy) {
+				if (($reverseproxy) && ($webselected === 'back-end')) {
 ?>
 
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
+	UseLocalConfig = no
 <?php
-		} else {
-			if ($enablephp) {
+					if ($enablephp) {
 ?>
 
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, redirect_<?php echo $domcleaner; ?>, findindexfile, permalink
+	UseToolkit = block_shellshock, block_httpoxy
+
+	#ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
 <?php
-			}
+					}
+				} else {
+?>
+
+	UseLocalConfig = yes
+
+	UseFastCGI = php_<?=$domclean;?>
+
+	UseToolkit = block_shellshock, block_httpoxy, redirect_<?=$domcleaner;?>_<?=$protocol;?>, findindexfile_<?=$domcleaner;?>, permalink
+<?php
+				}
+		//	}
 		}
 ?>
 
@@ -670,7 +820,15 @@ VirtualHost {
 
 	ShowIndex = no
 <?php
+		}
 
+		if (intval($microcache_time) > 0) {
+?>
+
+	## MR -- it's not work from here. Need insert to php file (usually index.php)
+	#CustomHeader = X-Hiawatha-Cache:<?=$microcache_time;?>
+
+<?php
 		}
 ?>
 }
@@ -684,169 +842,104 @@ VirtualHost {
 
 				$randnum = rand(0, 32767);
 
-				if ($redirpath) {
-					if ($disabled) {
-						$$redirfullpath = $disabledocroot;
+				if ($disabled) {
+					$redirfullpath = $disabledocroot;
+				} else {
+					if ($redirpath) {
+						$redirfullpath = str_replace('//', '/', $webdocroot . '/' . $redirpath);
 					} else {
-						$redirfullpath = str_replace('//', '/', $rootpath . '/' . $redirpath);
+						$redirfullpath = $webdocroot;
 					}
+				}
 ?>
 
-## web for redirect '<?php echo $redirdomainname; ?>'
+## web for redirect '<?=$redirdomainname;?>'
 VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
+	RequiredBinding = port_<?=$portnames[$count];?>
 
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
 
 <?php
-					if ($count !== 0) {
-						if ($enablessl) {
+				if ($count !== 0) {
+					if ($enablessl) {
 ?>
-	TLScertFile = <?php echo $certname; ?>.pem
+
+	TLScertFile = <?=$certname;?>.pem
 <?php
-							if (file_exists("{$certname}.ca")) {
+						if (file_exists("{$certname}.ca")) {
 ?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-							}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
 <?php
 						}
-					}
 ?>
 
-	set var_user = <?php echo $user; ?>
+	SecureURL = no
+	#MinTLSversion = 1.0
+<?php
+					}
+				}
+?>
 
+	set var_user = <?=$user;?>
 
-	UseGZfile = yes
 
 	FollowSymlinks = no
 
-	Hostname = <?php echo $domainname; ?>, <?php echo $serveralias; ?>
+	Hostname = <?=$redirdomainname;?>, www.<?=$redirdomainname;?>
 
 
-	WebsiteRoot = <?php echo $redirfullpath; ?>
+	WebsiteRoot = <?=$redirfullpath;?>
 
 
 	EnablePathInfo = yes
 
 	UserWebsites = yes
 
-	TimeForCGI = 600
+	TimeForCGI = <?=$timeout;?>
 
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
+
+	<?=$error_handler;?>
+
 
 	ExecuteCGI = yes
+
 <?php
-					if ($reverseproxy) {
+				if (($reverseproxy) && ($webselected === 'back-end')) {
 ?>
 
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-					} else {
-?>
+	UseLocalConfig = no
 
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-					}
-?>
+	UseToolkit = block_shellshock, block_httpoxy
 
-	#StartFile = index.php
-}
+	#ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
 
 <?php
 				} else {
-					if ($disabled) {
-						$$redirfullpath = $disabledocroot;
-					} else {
-						$redirfullpath = $rootpath;
-					}
 ?>
 
-## web for redirect '<?php echo $redirdomainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
+	UseLocalConfig = yes
 
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+	UseFastCGI = php_<?=$domclean;?>
 
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>, permalink
 <?php
-					if ($count !== 0) {
-						if ($enablessl) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-							}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-						}
-					}
-?>
-
-	set var_user = <?php echo $user; ?>
-
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = <?php echo $redirdomainname; ?>, www.<?php echo $redirdomainname; ?>
-
-
-	WebsiteRoot = <?php echo $redirfullpath; ?>
-
-
-	EnablePathInfo = yes
-
-	UserWebsites = yes
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-					if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-					} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-					}
+				}
 ?>
 
 	#StartFile = index.php
 }
 
 <?php
-				}
 			}
 		}
 
@@ -855,59 +948,90 @@ VirtualHost {
 				$parkdomainname = $dompark['parkdomain'];
 				$webmailmap = ($dompark['mailflag'] === 'on') ? true : false;
 
-				if ($disabled) {
+				if (($webmailremote) || ($webmailmap)) {
 ?>
 
-## webmail for parked '<?php echo $parkdomainname; ?>'
+## webmail for parked '<?=$parkdomainname;?>'
 VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
+	RequiredBinding = port_<?=$portnames[$count];?>
 
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
 
 <?php
 					if ($count !== 0) {
 ?>
-	TLScertFile = <?php echo $certname; ?>.pem
+
+	TLScertFile = <?=$certname;?>.pem
 <?php
 						if (file_exists("{$certname}.ca")) {
 ?>
-	RequiredCA = <?php echo $certname; ?>.ca
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
 <?php
 						}
 ?>
+
 	SecureURL = no
-	#MinTLSversion = TLS1.0
+	#MinTLSversion = 1.0
 <?php
 					}
 ?>
 
 	set var_user = apache
 
-	UseGZfile = yes
-
 	FollowSymlinks = no
 
-	Hostname = webmail.<?php echo $parkdomainname; ?>
+	Hostname = webmail.<?=$parkdomainname;?>, mail.<?=$parkdomainname;?>
 
 
-	WebsiteRoot = <?php echo $disabledocroot; ?>
+	WebsiteRoot = <?=$webmaildocroot;?>
 
 
-	EnablePathInfo = yes
+	TimeForCGI = <?=$timeout;?>
+
+
+	<?=$error_handler;?>
+
+
+	ExecuteCGI = yes
+
 <?php
-					if ($reverseproxy) {
+					if (($reverseproxy) && ($webselected === 'back-end')) {
 ?>
 
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
+	UseLocalConfig = no
+
+	UseToolkit = block_shellshock, block_httpoxy
+
+	ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	#ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
 <?php
 					} else {
 ?>
 
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
+	UseLocalConfig = yes
+
+	UseFastCGI = php_apache
 <?php
+						if ($webmailremote) {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, redirect_<?=str_replace('.', '_', $webmailremote);?>_<?=$protocols[$count];?>
+
+<?php
+						} else {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>, permalink
+<?php
+						}
 					}
 ?>
 
@@ -916,154 +1040,13 @@ VirtualHost {
 
 <?php
 				} else {
-					if ($webmailremote) {
 ?>
 
-## webmail for parked '<?php echo $parkdomainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+## No mail map for parked '<?=$parkdomainname;?>'
 
 <?php
-						if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-							}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-						}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $parkdomainname; ?>
-
-
-	WebsiteRoot = <?php echo $webmaildocroot; ?>
-
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-						if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-						} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-						}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-					} elseif ($webmailmap) {
-?>
-
-## webmail for parked '<?php echo $parkdomainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
-
-<?php
-						if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-							}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-						}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $parkdomainname; ?>
-
-
-	WebsiteRoot = <?php echo $webmaildocroot; ?>
-
-
-	EnablePathInfo = yes
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-						if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-						} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-						}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-					} else {
-?>
-
-## No mail map for parked '<?php echo $parkdomainname; ?>'
-
-<?php
-					}
 				}
+
 			}
 		}
 
@@ -1072,70 +1055,93 @@ VirtualHost {
 				$redirdomainname = $domredir['redirdomain'];
 				$webmailmap = ($domredir['mailflag'] === 'on') ? true : false;
 
-				if ($disabled) {
+
+				if (($webmailremote) || ($webmailmap)) {
 ?>
 
-## webmail for redirect '<?php echo $redirdomainname; ?>'
+## webmail for redirect '<?=$redirdomainname;?>'
 VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
+	RequiredBinding = port_<?=$portnames[$count];?>
 
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+
+	Alias = /.well-known:/var/run/letsencrypt/.well-known
+
+<?=$general_header_text;?>
 
 <?php
 					if ($count !== 0) {
 ?>
-	TLScertFile = <?php echo $certname; ?>.pem
+
+	TLScertFile = <?=$certname;?>.pem
 <?php
 						if (file_exists("{$certname}.ca")) {
 ?>
-	RequiredCA = <?php echo $certname; ?>.ca
+	#RequiredCA = <?=$certname;?>.ca
+
+<?=$https_header_text;?>
+
 <?php
 						}
 ?>
+
 	SecureURL = no
-	#MinTLSversion = TLS1.0
+	#MinTLSversion = 1.0
 <?php
 					}
 ?>
 
 	set var_user = apache
 
-	UseGZfile = yes
-
 	FollowSymlinks = no
 
-	Hostname = webmail.<?php echo $redirdomainname; ?>
+	Hostname = webmail.<?=$redirdomainname;?>, mail.<?=$redirdomainname;?>
 
 
-	WebsiteRoot = <?php echo $disabledocroot; ?>
+	WebsiteRoot = <?=$webmaildocroot;?>
 
 
 	EnablePathInfo = yes
 
-	TimeForCGI = 600
+	TimeForCGI = <?=$timeout;?>
 
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
+
+	<?=$error_handler;?>
+
 
 	ExecuteCGI = yes
+
 <?php
-					if ($reverseproxy) {
+					if (($reverseproxy) && ($webselected === 'back-end')) {
 ?>
 
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
+	UseLocalConfig = no
+
+	UseToolkit = block_shellshock, block_httpoxy
+
+	ReverseProxy ^/.* http://127.0.0.1:30080/ <?=$timeout;?>
+
+	#ReverseProxy !\.(pl|cgi|py|rb|shmtl) <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
+	#ReverseProxy ^/.* <?=$protocols[$count];?>://127.0.0.1:<?=$reverseports[$count];?>/ <?=$timeout;?>
+
 <?php
 					} else {
 ?>
 
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile
+	UseLocalConfig = yes
+
+	UseFastCGI = php_apache
 <?php
+						if ($webmailremote) {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, redirect_<?=str_replace('.', '_', $webmailremote);?>_<?=$protocols[$count];?>
+
+<?php
+						} else {
+?>
+	UseToolkit = block_shellshock, block_httpoxy, findindexfile_<?=$domcleaner;?>, permalink
+<?php
+						}
 					}
 ?>
 
@@ -1144,156 +1150,13 @@ VirtualHost {
 
 <?php
 				} else {
-					if ($webmailremote) {
 ?>
 
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
+## No mail map for redirect '<?=$redirdomainname;?>'
 
 <?php
-						if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-							}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-						}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $redirdomainname; ?>
-
-
-	WebsiteRoot = <?php echo $webmaildocroot; ?>
-
-
-	EnablePathInfo = yes
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-						if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-						} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-						}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-					} elseif ($webmailmap) {
-?>
-
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-VirtualHost {
-	CustomHeader = X-Frame-Options:sameorigin
-
-	RequiredBinding = port_<?php echo $portnames[$count]; ?>
-
-<?php
-						if ($count !== 0) {
-?>
-	TLScertFile = <?php echo $certname; ?>.pem
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	RequiredCA = <?php echo $certname; ?>.ca
-<?php
-							}
-?>
-	SecureURL = no
-	#MinTLSversion = TLS1.0
-<?php
-						}
-?>
-
-	set var_user = apache
-
-	UseGZfile = yes
-
-	FollowSymlinks = no
-
-	Hostname = webmail.<?php echo $redirdomainname; ?>
-
-
-	WebsiteRoot = <?php echo $webmaildocroot; ?>
-
-
-	EnablePathInfo = yes
-
-	TimeForCGI = 600
-
-	Alias = /error:/home/kloxo/httpd/error
-	ErrorHandler = 401:/error/401.html
-	ErrorHandler = 403:/error/403.html
-	ErrorHandler = 404:/error/404.html
-	ErrorHandler = 501:/error/501.html
-	ErrorHandler = 503:/error/503.html
-
-	ExecuteCGI = yes
-<?php
-						if ($reverseproxy) {
-?>
-
-	IgnoreDotHiawatha = yes
-	#ReverseProxy ^/.* http://127.0.0.1:30080/ 300 keep-alive
-	ReverseProxy !\.(pl|cgi|py|rb|shmtl) http://127.0.0.1:30080/ 300 keep-alive
-<?php
-						} else {
-?>
-
-	UseFastCGI = php_for_var_user
-	UseToolkit = block_shellshock, findindexfile, permalink
-<?php
-						}
-?>
-
-	#StartFile = index.php
-}
-
-<?php
-					} else {
-?>
-
-## No mail map for redirect '<?php echo $redirdomainname; ?>'
-
-<?php
-					}
 				}
+
 			}
 		}
 
@@ -1302,4 +1165,4 @@ VirtualHost {
 }
 ?>
 
-### end - web of '<?php echo $domainname; ?>' - do not remove/modify this line
+### end - web of '<?=$domainname;?>' - do not remove/modify this line

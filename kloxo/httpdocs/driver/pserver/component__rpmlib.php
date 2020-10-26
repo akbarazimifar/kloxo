@@ -24,55 +24,65 @@ class Component__rpm extends lxDriverClass
 	{
 		global $sgbl;
 
-		$comps = array('mysql', 'postgresql', 
-			'httpd', 'lighttpd', 'nginx', 'hiawatha', 'openlitespeed', 'monkey',
-			'trafficserver', 'varnish', 'squid',
-			'php', 'perl', 'mono', 'ruby', 
-			'bind', 'djbdns', 'pdns', 'nsd', 'mydns', 'yadifa',
-			'qmail-toaster', 'pure-ftpd');
+		$files = glob("../etc/list/set.*.lst", GLOB_MARK);
 
-		foreach ($comps as $k => $c) {
-		//	$list[]['componentname'] = $c;
+		foreach ($files as $fk => $fv) {
+			$b = basename($fv);
 
-			$tmp = rl_exec_get('localhost', $syncserver, 'getRpmBranchInstalled', array('$c'));
+			if (file_exists("../etc/list/custom.{$b}")) {
+				$fv = "../etc/list/custom.{$b}";
+			}
 
-			if ($tmp) {
-				$list[]['componentname'] = $tmp;
+			$type = preg_replace("(custom\.|set\.|\.lst)", "", $b);
+
+			// MR -- no detect for httpd because include in web
+			if ($type === 'httpd') { continue; }
+
+			$list = explode(",", trim(file_get_contents($fv), "\n"));
+
+			if ($type === 'php') {
+				$type = 'php-branch';
+				$list = array_map(function($value) { return "{$value}-cli"; }, $list);
 			} else {
-				$list[]['componentname'] = $c;
+				$list = array_values(array_unique($list));
+			}
+
+			$out = null;
+			exec('rpm -q ' . implode(" ", $list), $out);
+
+			foreach ($list as $k => $v) {
+				$nname = "{$v}___{$syncserver}";
+
+				$componentname = $v;
+				$version = $out[$k];
+				$status = (strpos($out[$k], 'is not installed') !== false) ? 'off' : 'on';
+
+				$t[] = array('nname' => $nname, 'componentname' => $componentname, 
+					'version' => $version, 'status' => $status,
+					'type' => $type);
 			}
 		}
 
-		foreach($list as $l) {
-			$nlist[] = $l['componentname'];
+		$list = getCleanRpmBranchListOnList('php');
+
+		foreach ($list as $k => $v) {
+			$nname = "{$v}___{$syncserver}";
+			$type = "multiple-php";
+			$componentname = $v;
+
+			if (file_exists("/opt/{$v}/version")) {
+				$version = "{$v}-" . file_get_contents("/opt/{$v}/version");
+				$status = 'on';
+			} else {
+				$version = "package {$v} is not installed";
+				$status = 'off';
+			}
+
+			$t[] = array('nname' => $nname, 'componentname' => $componentname, 
+				'version' => $version, 'status' => $status,
+				'type' => $type);
 		}
 
-		$complist = implode(" ", $nlist);
-
-		$file = fix_nname_to_be_variable("rpm -q $complist");
-		$file = "$sgbl->__path_program_root/cache/$file";
-
-		$cmdlist = lx_array_merge(array(array("rpm", "-q"), $nlist));
-		$val = get_with_cache($file, $cmdlist);
-
-		$res = explode("\n", $val);
-
-		$ret = null;
-
-		foreach($list as $k => $l) {
-			$name = $list[$k]['componentname'];
-			$sing['nname'] = $name . "___" . $syncserver;
-			$sing['componentname'] = $name;
-
-			$sing['version'] = self::getVersion($res, $name);
-			$status = strstr($sing['version'], "not installed");
-			$sing['status'] = $status? 'off': 'on';
-
-			$ret[] = $sing;
-		}
-
-		return $ret;
+		return $t;
 	}
 }
-
-

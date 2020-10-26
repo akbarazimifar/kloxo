@@ -2,41 +2,69 @@
 
 <?php
 
-$srcconfpath = "/opt/configs/nginx/etc/conf";
-$srcconfdpath = "/opt/configs/nginx/etc/conf.d";
+$srcpath = "/opt/configs/nginx";
+
+$custom_conf = getLinkCustomfile("{$srcpath}/etc/sysconfig", "spawn-fcgi");
+copy($custom_conf, "/etc/sysconfig/spawn-fcgi");
+
+if (!isset($phpselected)) {
+	$phpselected = 'php';
+}
+
+if (!isset($timeout)) {
+	$timeout = '300';
+}
+
+@exec("chown -R apache:apache /var/cache/nginx*");
+
+$vsnpath = "/var/cache/nginx";
+
+if (!file_exists("{$vsnpath}/proxy_temp")) {
+	exec("mkdir -p {$vsnpath}/proxy_temp");
+	@exec("chown -R apache:apache {$vsnpath}/proxy_temp");
+}
+
+if (!file_exists("{$vsnpath}/fastcgi_temp")) {
+	exec("mkdir -p {$vsnpath}/fastcgi_temp");
+	@exec("chown -R apache:apache {$vsnpath}/fastcgi_temp");
+}
+
+$vrlw = "/var/run/letsencrypt/.well-known/acme-challenge";
+
+if (!file_exists($vrlw)) {
+	exec("mkdir -p {$vrlw}");
+}
+
+$srcconfpath = "{$srcpath}/etc/conf";
+$srcconfdpath = "{$srcpath}/etc/conf.d";
 $trgtconfpath = "/etc/nginx";
-$trgtconfdpath = "/etc/nginx/conf.d";
+$trgtconfdpath = "{$trgtconfpath}/conf.d";
+
+$defaultdocroot = "/home/kloxo/httpd/default";
+
+$globalspath = "{$srcpath}/conf/globals";
 
 $confs = array('nginx.conf', 'mime.types', 'fastcgi_params');
 
+$switches = array('', '_ssl');
+
 foreach ($confs as $k => $v) {
-	if (file_exists("{$srcconfpath}/custom.{$v}")) {
-		copy("{$srcconfpath}/custom.{$v}", "{$trgtconfpath}/{$v}");
-	} else {
-		copy("{$srcconfpath}/{$v}", "{$trgtconfpath}/{$v}");
-	}
+	$custom_conf = getLinkCustomfile($srcconfpath, $v);
+	copy($custom_conf, "{$trgtconfpath}/{$v}");
 }
 
 $confs = array('~lxcenter.conf', 'default.conf');
 
 foreach ($confs as $k => $v) {
-	if (file_exists("{$srcconfdpath}/custom.{$v}")) {
-		copy("{$srcconfdpath}/custom.{$v}", "{$trgtconfdpath}/{$v}");
-	} else {
-		copy("{$srcconfdpath}/{$v}", "{$trgtconfdpath}/{$v}");
-	}
+	$custom_conf = getLinkCustomfile($srcconfdpath, $v);
+	copy($custom_conf, "{$trgtconfdpath}/{$v}");
 }
 
 foreach ($certnamelist as $ip => $certname) {
-	$certnamelist[$ip] = "/home/kloxo/httpd/ssl/{$certname}";
+	$certnamelist[$ip] = "/home/kloxo/ssl/{$certname}";
 }
 
 $iplist = array('*');
-
-$defaultdocroot = "/home/kloxo/httpd/default";
-$cpdocroot = "/home/kloxo/httpd/cp";
-
-$globalspath = "/opt/configs/nginx/conf/globals";
 
 if ($indexorder) {
 	$indexorder = implode(' ', $indexorder);
@@ -47,9 +75,10 @@ if ($indexorder) {
 // $fpmportapache = (50000 + $userinfoapache['uid']);
 $fpmportapache = 50000;
 
+$out = null;
 exec("ip -6 addr show", $out);
 
-if ($out[0]) {
+if (count($out) > 0) {
 	$IPv6Enable = true;
 } else {
 	$IPv6Enable = false;
@@ -57,41 +86,44 @@ if ($out[0]) {
 
 if ($reverseproxy) {
 	$confs = array('proxy_standard' => 'switch_standard', 'proxy_wildcards' => 'switch_wildcards',
-		'stats_none' => 'stats', 'dirprotect_none' => 'dirprotect_stats');
+		'proxy_standard_ssl' => 'switch_standard_ssl', 'proxy_wildcards_ssl' => 'switch_wildcards_ssl');
 } else {
-	if ($stats['app'] === 'webalizer') {
-		$confs = array('php-fpm_standard' => 'switch_standard', 'php-fpm_wildcards' => 'switch_wildcards',
-		'stats_webalizer' => 'stats', 'dirprotect_webalizer' => 'dirprotect_stats');
-	} else {
-		$confs = array('php-fpm_standard' => 'switch_standard', 'php-fpm_wildcards' => 'switch_wildcards',
-		'stats_awstats' => 'stats', 'dirprotect_awstats' => 'dirprotect_stats');
-	}
-
+	$confs = array('php-fpm_standard' => 'switch_standard', 'php-fpm_wildcards' => 'switch_wildcards',
+		'php-fpm_standard_ssl' => 'switch_standard_ssl', 'php-fpm_wildcards_ssl' => 'switch_wildcards_ssl');
 }
 
-foreach ($confs as $k => $v) {
-	if (file_exists("{$globalspath}/custom.{$k}.conf")) {
-		copy("{$globalspath}/custom.{$k}.conf", "{$globalspath}/{$v}.conf");
-	} else {
-		copy("{$globalspath}/{$k}.conf", "{$globalspath}/{$v}.conf");
-	}
+if ($stats['app'] === 'webalizer') {
+	$confs = array_merge($confs, array('stats_webalizer' => 'stats'));
+} else {
+	$confs = array_merge($confs, array('stats_awstats' => 'stats'));
 }
 
 if (($webcache === 'none') || (!$webcache)) {
-	$confs = array('listen_nonssl_front' => 'listen_nonssl', 'listen_ssl_front' => 'listen_ssl',
-		'listen_nonssl_front_default' => 'listen_nonssl_default', 'listen_ssl_front_default' => 'listen_ssl_default');
+	$out = null;
+	exec("echo $(2>&1 nginx -V | tr -- - '\n' | grep _module)|tr ' ' '\n'|grep 'http_v2_module'", $out);
+
+	if (count($out) > 0) {
+		$confs = array_merge($confs, array('listen_nonssl_front' => 'listen_nonssl', 'listen_ssl_front_h2' => 'listen_ssl',
+			'listen_nonssl_front_default' => 'listen_nonssl_default', 'listen_ssl_front_default_h2' => 'listen_ssl_default'));
+	} else {
+		$confs = array_merge($confs, array('listen_nonssl_front' => 'listen_nonssl', 'listen_ssl_front' => 'listen_ssl',
+			'listen_nonssl_front_default' => 'listen_nonssl_default', 'listen_ssl_front_default' => 'listen_ssl_default'));
+	}
 } else {
-	$confs = array('listen_nonssl_back' => 'listen_nonssl', 'listen_ssl_back' => 'listen_ssl',
-		'listen_nonssl_back_default' => 'listen_nonssl_default', 'listen_ssl_back_default' => 'listen_ssl_default');
+	$confs = array_merge($confs, array('listen_nonssl_back' => 'listen_nonssl', 'listen_ssl_back' => 'listen_ssl',
+		'listen_nonssl_back_default' => 'listen_nonssl_default', 'listen_ssl_back_default' => 'listen_ssl_default'));
 }
 
 foreach ($confs as $k => $v) {
-	if (file_exists("{$globalspath}/custom.{$k}.conf")) {
-		copy("{$globalspath}/custom.{$k}.conf", "{$globalspath}/{$v}.conf");
-	} else {
-		copy("{$globalspath}/{$k}.conf", "{$globalspath}/{$v}.conf");
-	}
+	$custom_conf = getLinkCustomfile($globalspath, "{$k}.conf");
+	copy($custom_conf, "{$globalspath}/{$v}.conf");
 }
+
+$gzip_base_conf = getLinkCustomfile($globalspath, "gzip.conf");
+
+$ssl_base_conf = getLinkCustomfile($globalspath, "ssl_base.conf");
+
+$acmechallenge_conf = getLinkCustomfile($globalspath, "acme-challenge.conf");
 
 $listens = array('listen_nonssl_default', 'listen_ssl_default');
 
@@ -105,47 +137,59 @@ foreach ($certnamelist as $ip => $certname) {
 server {
 	#disable_symlinks if_not_owner;
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
+
+	include '<?=$gzip_base_conf;?>';
 <?php
 		if ($count !== 0) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
 			if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
+	ssl_trusted_certificate <?=$certname;?>.ca;
 <?php
 			}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
 		}
 
 ?>
 
 	server_name _;
 
-	index <?php echo $indexorder; ?>;
+	include '<?=$acmechallenge_conf;?>';
+
+	index <?=$indexorder;?>;
 
 	set $var_domain '';
-
-	set $var_rootdir '<?php echo $defaultdocroot; ?>';
+	set $var_rootdir '<?=$defaultdocroot;?>';
 
 	root $var_rootdir;
 
 	set $var_user 'apache';
+	set $var_fpmport '<?=$fpmportapache;?>';
+	set $var_phpselected 'php';
+<?php
+		//if ((!$reverseproxy) || (($reverseproxy) && ($webselected === 'front-end'))) {
+?>
 
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
+	proxy_connect_timeout <?=$timeout;?>s;
+	proxy_send_timeout <?=$timeout;?>s;
+	proxy_read_timeout <?=$timeout;?>s;
+<?php
+		//} else {
+?>
 
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
+	fastcgi_connect_timeout <?=$timeout;?>s;
+	fastcgi_send_timeout <?=$timeout;?>s;
+	fastcgi_read_timeout <?=$timeout;?>s;
+<?php
+		//}
+?>
+
+	include '<?=getLinkCustomfile($globalspath, "switch_standard{$switches[$count]}.conf");?>';
 <?php
 		$count++;
 ?>

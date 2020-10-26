@@ -1,19 +1,20 @@
 #!/bin/sh
 
-echo "*** Process for DJBDNS service ***"
+echo "*** Restart for DJBDNS service ***"
 
 if [ ! -f /var/run/djbdns.pid ] ; then
 	if [ -f /var/lock/subsys/djbdns ] ; then
 		'rm' -f /var/lock/subsys/djbdns
 	fi
-
-	/etc/rc.d/init.d/djbdns start
-else
-	echo "  - No need started"
 fi
 
-echo "  - Process: dnsnotify"
-for i in $(ls /opt/configs/djbdns/conf/master) ; do
-	sh /script/dnsnotify ${i}
-done
+## MR -- exists in list.transfered.conf.tpl
+#echo "  - Process: dnsnotify"
+#for i in $(ls /opt/configs/djbdns/conf/master) ; do
+#	sh /script/dnsnotify ${i}
+#done
+
+prog='djbdns'
+
+. /usr/local/lxlabs/kloxo/etc/process/service.inc
 

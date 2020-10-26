@@ -28,7 +28,7 @@ abstract class Lxclass
 	static $__desc_ccenter_command = array("", "", "ccenter_command");
 	static $__desc_confirm_f = array("", "", "Confirm");
 	static $__desc_ccenter_output = array("T", "", "ccenter_output");
-	static $__desc_ccenter_error = array("", "", "ccenter_error");
+	static $__desc_ccenter_error = array("T", "", "ccenter_error");
 	static $__acdesc_update_toggle_status = array("", "", "status");
 	static $__acdesc_update_disable = array("", "", "disable");
 	static $__acdesc_update_enable = array("", "", "enable");
@@ -122,7 +122,8 @@ abstract class Lxclass
 		if ($this->inheritSynserverFromParent() && $parent) {
 			if (!$this->isClass('ssession')) {
 				$this->syncserver = $parent->getSyncServerForChild($this->getClass());
-				log_log("syncserveriherit", "Adding syncserver $this->syncserver to $this->nname {$this->getclass()} from {$parent->getClName()}");
+				log_log("syncserveriherit", "Adding syncserver $this->syncserver to $this->nname ".
+					"{$this->getclass()} from {$parent->getClName()}");
 			}
 		}
 	}
@@ -259,7 +260,8 @@ abstract class Lxclass
 		}
 
 		// Don't need this. Ruins the appearance <b> [</b>{$obj->getShowInfo()}<b>] </b>
-		return "{$desc}  <span title=\"{$desc} is Configured {$descr} on {$obj->__driverappclass}\"> {$str} {$switch} &#x00bb; <span style='font-weight: normal'>{$obj->__driverappclass}<span> </span>";
+		return "{$desc}  <span title=\"{$desc} is Configured {$descr} on {$obj->__driverappclass}\"> ".
+			"{$str} {$switch} &#x00bb; <span style='font-weight: normal'>{$obj->__driverappclass}<span> </span>";
 
 	}
 
@@ -379,49 +381,60 @@ abstract class Lxclass
 
 		$acto = $login->getObject('general')->customaction_b;
 
-		$var = "{$this->get__table()}__{$this->dbaction}__{$this->subaction}";
+		$avar = array();
 
-		if (isset($acto->$var) && $acto->$var) {
-			$action = $acto->$var;
-			$action = str_replace('%contactemail%', $this->contactemail, $action);
-			$action = str_replace('%nname%', $this->nname, $action);
-			lxshell_direct($action);
-		}
-
-		if (!$this->isClass('vps')) {
-			return;
-		}
-
-		$sq = new Sqlite(null, 'customaction');
-
-		if ($this->dbaction === 'add') {
-			$query = "action = '$this->dbaction' AND class = '{$this->getClass()}'";
+		if (!is_array($this->subaction)) {
+			$avar[] = $this->subaction;
 		} else {
-			$query = "action = '$this->dbaction' AND subaction = '$this->subaction' AND class = '{$this->getClass()}'";
+			$avar = $this->subaction;
 		}
 
-		$this->__var_custom_exec = null;
+		foreach($avar as $key => $value) {
+			$var = "{$this->get__table()}__{$this->dbaction}__{$value}";
 
-		dprint($query . "\n");
+			if (isset($acto->$var) && $acto->$var) {
+				$action = $acto->$var;
+				$action = str_replace('%contactemail%', $this->contactemail, $action);
+				$action = str_replace('%nname%', $this->nname, $action);
+				lxshell_direct($action);
+			}
 
-		$list = $sq->getRowsWhere($query);
+			if (!$this->isClass('vps')) {
+				return;
+			}
 
-		if (!$list) {
-			return;
-		}
+			$sq = new Sqlite(null, 'customaction');
 
-		dprintr($list . "\n");
-
-		foreach ($list as $k => $l) {
-			$ex = $l['exec'];
-			$ex = str_replace('%contactemail%', $this->contactemail, $ex);
-			$ex = str_replace('%nname%', $this->nname, $ex);
-			$ex = str_replace('%hostname%', $this->hostname, $ex);
-			$ex = str_replace('%vpsid%', $this->vpsid, $ex);
-			if ($l['where_to_exec'] === 'master') {
-				lxshell_direct($ex);
+			if ($this->dbaction === 'add') {
+				$query = "action = '$this->dbaction' AND class = '{$this->getClass()}'";
 			} else {
-				$this->__var_custom_exec = $ex;
+				$query = "action = '$this->dbaction' AND subaction = '$this->subaction' AND ".
+					"class = '{$this->getClass()}'";
+			}
+
+			$this->__var_custom_exec = null;
+
+			dprint($query . "\n");
+
+			$list = $sq->getRowsWhere($query);
+
+			if (!$list) {
+				return;
+			}
+
+			dprintr($list . "\n");
+
+			foreach ($list as $k => $l) {
+				$ex = $l['exec'];
+				$ex = str_replace('%contactemail%', $this->contactemail, $ex);
+				$ex = str_replace('%nname%', $this->nname, $ex);
+				$ex = str_replace('%hostname%', $this->hostname, $ex);
+				$ex = str_replace('%vpsid%', $this->vpsid, $ex);
+				if ($l['where_to_exec'] === 'master') {
+					lxshell_direct($ex);
+				} else {
+					$this->__var_custom_exec = $ex;
+				}
 			}
 		}
 	}
@@ -677,7 +690,8 @@ abstract class Lxclass
 			}
 		}
 
-		// If it is pserver, then when it is initialized don't create the driver, since the driver system is not in place at all.
+		// If it is pserver, then when it is initialized don't create the driver,
+		// since the driver system is not in place at all.
 		if ($this->get__table() !== 'pserver') {
 			if ($this->hasDriverClass()) {
 				$this->createSyncClass();
@@ -1056,7 +1070,8 @@ abstract class Lxclass
 			$obj = exec_class_method($class, 'initThisObject', $this, $class);
 		}
 
-		// If the object doesn't exist and is newly created, then assign it fully to the current guy. WIhtout this, it becomes impossible to delete the object if it doesn't exist in the db.
+		// If the object doesn't exist and is newly created, then assign it fully to the current guy.
+		// Without this, it becomes impossible to delete the object if it doesn't exist in the db.
 		if (!$obj) {
 			$obj = new $class($this->__masterserver, $this->__readserver, $name);
 			$obj->get();
@@ -1201,6 +1216,7 @@ abstract class Lxclass
 
 		return true;
 
+	/*
 		if (!$filter) {
 			return 1;
 		}
@@ -1230,6 +1246,7 @@ abstract class Lxclass
 		}
 
 		return $res;
+	*/
 	}
 
 	static function isTreeForDelete()
@@ -1239,6 +1256,8 @@ abstract class Lxclass
 
 	function getDefaultQuery($class, $result)
 	{
+		$query = null;
+
 		if (is_array($result)) {
 			foreach ($result as &$k) {
 				if (is_array($k)) {
@@ -1342,7 +1361,7 @@ abstract class Lxclass
 
 	function inNoBackuplist()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+	//	global $gbl, $sgbl, $login, $ghtml;
 	}
 
 	function loadBackupAll()
@@ -2232,7 +2251,8 @@ abstract class Lxclass
 				$res = $db->getRowsGeneric($query);
 
 				if (!$res) {
-					throw new lxException($login->getThrow("no_element"), '', "{$name} in {$this->getClass()}:{$this->nname} {$list}");
+					// MR -- disabled it - may trouble for delete domain (for example)
+				//	throw new lxException($login->getThrow("no_element"), '', "{$name} in {$this->getClass()}:{$this->nname} {$list}");
 				}
 
 				$obj = new $class($this->__masterserver, $this->__readserver, $name);
@@ -3103,7 +3123,9 @@ abstract class Lxclass
 
 	function getVariable($var)
 	{
-		return $this->$var;
+		if (isset($this->$var)) {
+			return $this->$var;
+		}
 	}
 
 	static function exec_collectQuota()
@@ -3191,6 +3213,7 @@ abstract class Lxclass
 		if (!isset($this->$var)) {
 			return false;
 		}
+
 		return (strtolower($this->$var) === 'on');
 	}
 
@@ -3928,21 +3951,14 @@ abstract class Lxclass
 
 	static function preAdd($parent, $class, $param)
 	{
+		return trimming($param);
 	}
 
 	static function add($parent, $class, $param)
 	{
 		if_demo_throw_exception();
-	/*
-		// MR -- only process if NOT multidimensional array
-		if (count($param) === count($param, COUNT_RECURSIVE)) {
-			// MR -- trim all array values
-			$param = array_map('trim', $param);
-		}
-	*/
-		$param = trimming($param);
 
-		return $param;
+		return trimming($param);
 	}
 
 	static function continueForm($parent, $class, $param, $continueaction)
@@ -4126,7 +4142,7 @@ abstract class Lxclass
 		$ret = null;
 
 		foreach ($list as $k => $ob) {
-			// Big big hack... this is to prevent the installapp titles from cropping up here. NEed a better system though.
+			// Big big hack... this is to prevent the easyinstaller titles from cropping up here. NEed a better system though.
 			if (csb($k, "__title_")) {
 				continue;
 			}
@@ -4231,20 +4247,12 @@ abstract class Lxclass
 
 	function preUpdate($subaction, $param)
 	{
+		return trimming($param);
 	}
 
 	function update($subaction, $param)
 	{
 		if_demo_throw_exception();
-
-	/*
-		// MR -- only process if NOT multidimensional array
-		if (count($param) === count($param, COUNT_RECURSIVE)) {
-			// MR -- trim all array values
-			$param = array_map('trim', $param);
-		}
-	*/
-		$param = trimming($param);
 
 		return $param;
 	}
@@ -4823,7 +4831,7 @@ abstract class Lxclass
 						$msg = "Warning: The Account {$this->nname} is using {$per}% of quota for {$var}.\n Limit: " .
 							"{$this->priv->$var}\nUsed: {$this->used->$var}\n";
 
-						if (!file_exists("/usr/local/lxlabs/kloxo/etc/flag/disablesendnotifyforquota.flg")) {
+						if (!file_exists("../etc/flag/disablesendnotifyforquota.flg")) {
 							$this->notifyAll($msg, false);
 						}
 					}
@@ -4843,7 +4851,7 @@ abstract class Lxclass
 			$msg = "The Account {$this->nname} has been disabled due to overquota";
 
 			if (!$sgbl->__var_just_db) {
-				if (!file_exists("/usr/local/lxlabs/kloxo/etc/flag/disablesendnotifyforquota.flg")) {
+				if (!file_exists("../etc/flag/disablesendnotifyforquota.flg")) {
 					$this->notifyAll($msg);
 				}
 			}
@@ -5153,7 +5161,7 @@ abstract class Lxclass
 
 	function getExtraId() { return null; }
 
-	function  getChildShowActions(&$alist)
+	function getChildShowActions(&$alist)
 	{
 		global $gl_parent_array;
 
@@ -5636,8 +5644,9 @@ abstract class Lxclass
 		// forum http://forum.lxcenter.org/index.php?t=msg&th=16875
 		// TODO!
 
+		// MR -- make restore without detect client!
 		if ($ob->getClName() !== $this->getClName()) {
-			throw new lxException($login->getThrow('objectclassname_does_not_match'), '', "{$ob->getClName()} - {$this->getClName()}");
+		//	throw new lxException($login->getThrow('objectclassname_does_not_match'), '', "{$ob->getClName()} - {$this->getClName()}");
 		}
 
 
@@ -5763,7 +5772,7 @@ abstract class Lxclass
 		$this->loadBackupAll();
 		print("Done\n");
 
-		$vd = createTempDir("/tmp", "backup");
+		$vd = createTempDir($sgbl->__path_serverfile, "backup");
 
 		$rem = new Remote();
 		$ver = $sgbl->__ver_major_minor;
@@ -5785,16 +5794,33 @@ abstract class Lxclass
 		print("Done\n");
 
 		try {
+			// MR - use getRpmBranchList for the trick find out array
+			$unbackuper = getRpmBranchList(unbackup);
+
 			foreach ((array)$gbl->__var_objectbackuplist as $d) {
-				// MR -- bypass to make xxx@yyy.zzz.tgz file
-				if (strpos($d->nname, '@') !== false) { continue; }
+				$e = true;
 
-				if (($d->get__table() === 'client') && ($d->nname === 'backuper')) { continue; }
+				foreach ($unbackuper as $b) {
+					if (($d->get__table() === 'client') && ($d->nname === $b)) {
+						$e = false;
+					}
+				}
 
-				print("Taking backup of '{$d->get__table()}:{$d->nname}'\n");
-				log_log("backup", "Taking backup of '{$d->get__table()}:{$d->nname}'");
-				$d->backMeUp($vd, $rem->ddate);
+				if ($e) {
+					// MR -- bypass to make xxx@yyy.zzz.tgz file
+					if (strpos($d->nname, '@') !== false) { continue; }
+
+				//	if (($d->get__table() === 'client') && ($d->nname === 'backuper')) { continue; }
+				//	if (($d->get__table() === 'client') && ($d->nname === 'rpms')) { continue; }
+
+					print("Taking backup of '{$d->get__table()}:{$d->nname}'\n");
+					log_log("backup", "Taking backup of '{$d->get__table()}:{$d->nname}'");
+					$d->backMeUp($vd, $rem->ddate);
+				}
 			}
+
+			print("Wait for zipping (and send to remote server if enable) process...\n");
+
 		} catch (Exception $e) {
 		//	lxfile_tmp_rm_rec($vd);
 		//	throw $e;
@@ -5871,7 +5897,7 @@ abstract class Lxclass
 		// Issue #671 - Fixed backup-restore issue
 		// change to tgz for default that make less space especially temp process
 
-		if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/backup_compress_disabled.flg")) {
+		if (file_exists("../etc/flag/backup_compress_disabled.flg")) {
 			return "tar";
 		} else {
 			return "tgz";

@@ -23,6 +23,8 @@ class Servermail__Qmail  extends lxDriverClass
 
 	function save_myname()
 	{
+		validate_domain_name($this->main->myname);
+
 		$rfile = "/var/qmail/control/me";
 		lfile_put_contents($rfile, $this->main->myname);
 		$rfile = "/var/qmail/control/defaulthost";
@@ -44,11 +46,10 @@ class Servermail__Qmail  extends lxDriverClass
 		//
 	}
 
-	function save_xinetd_qmail()
+	function save_control_qmail()
 	{
 		global $login;
 
-		$bcont = lfile_get_contents("../file/template/xinetd.smtp_lxa");
 		$maps = null;
 
 		if ($this->main->isOn("enable_maps")) { $maps = "/usr/bin/rblsmtpd -r bl.spamcop.net"; }
@@ -89,9 +90,12 @@ class Servermail__Qmail  extends lxDriverClass
 
 		lfile_put_contents("/var/qmail/control/concurrencyincoming", $instance);
 
-		lfile_put_contents("/var/qmail/control/smtproutes", $this->main->smtp_relay);
+		if (isset($this->main->smtp_relay)) {
+			lfile_put_contents("/var/qmail/control/smtproutes", $this->main->smtp_relay);
+		}
 
-		if ($this->main->isOn('virus_scan_flag')) {
+	//	if ($this->main->isOn('virus_scan_flag')) {
+		if ($this->main->virus_scan_flag == 'on') {
 			$ret = lxshell_return("rpm", "-q", "simscan-toaster");
 
 			if ($ret) {
@@ -99,39 +103,72 @@ class Servermail__Qmail  extends lxDriverClass
 			//	throw new lxException($login->getThrow('simscan_is_not_installed_for_virus_scan'), '', 'simscan-toaster');
 			}
 
-			lxshell_return("yum", "install", "-y", "clamav", "clamd");
+			exec("sh /script/clamav-installer");
 
 			// MR -- clamav from epel use clamd instead clamav init
-		//	lxfile_cp("../file/clamav.init", "/etc/init.d/clamav");
-		//	lxfile_unix_chmod("/etc/init.d/clamav", "755");
-		//	lxshell_return("chkconfig", "clamav", "on");
-		//	os_service_manage("clamav", "restart");
-			os_service_manage("freshclam", "restart");
-			lxshell_return("chkconfig", "freshclam", "on");
+			if (isServiceExists("freshclam")) {
+			//	exec("chkconfig freshclam on >/dev/null 2>&1");
+			//	os_service_manage("freshclam", "restart");
+				exec("sh /script/enable-service freshclam restart");
+			}
+
+			// MR -- clamav from epel use clamd instead clamav init
+			if (isServiceExists("clamd")) {
+				exec("sh /script/disable-service clamd stop");
+			}
+
 			lxfile_cp("../file/linux/simcontrol", "/var/qmail/control/");
 			lxshell_return("/var/qmail/bin/simscanmk");
 			lxshell_return("/var/qmail/bin/simscanmk", "-g");
-		} else {
-		//	lxshell_return("chkconfig", "clamav", "off");
-		//	os_service_manage("clamav", "stop");
-			os_service_manage("freshclam", "stop");
-			lxshell_return("chkconfig", "freshclam", "off");
 
-			// MR -- don't need uninstall because possible used by other purpose
-		//	lxshell_return("rpm", "-e", "--nodeps", "clamav");
-		//	lxshell_return("rpm", "-e", "--nodeps", "clamd");
+			$cpath = "/var/qmail/supervise/clamd";
+	
+			if (file_exists("{$cpath}/down")) {
+				lxfile_mv("{$cpath}/down", "{$cpath}/run");
+				lxfile_mv("{$cpath}/log/down", "{$cpath}/log/run");
+			}
+
+			createRestartFile("restart-mail");
+
+			// MR -- clamav for ftp upload file
+			exec("sh /script/pure-ftpd-with-clamav");
+		} else {
+		//	if (isServiceExists("freshclam")) {
+				exec("chkconfig freshclam off >/dev/null 2>&1");
+				os_service_manage("freshclam", "stop");
+				exec("chkconfig clamd off >/dev/null 2>&1");
+				os_service_manage("clamd", "stop");
+
+			//	lxshell_return("rpm", "-e", "--nodeps", "clamav");
+			//	lxshell_return("rpm", "-e", "--nodeps", "clamd");
+				lxshell_return("yum", "remove", "-y", "clamav", "clamd");
+				lxshell_return("yum", "remove", "-y", "simscan-toaster");
+
+				$cpath = "/var/qmail/supervise/clamd";
+
+				if (file_exists("{$cpath}/run")) {
+					lxfile_mv("{$cpath}/run", "{$cpath}/down");
+					lxfile_mv("{$cpath}/log/run", "{$cpath}/log/down");
+				}
+
+				// MR -- clamav for ftp upload file
+				exec("sh /script/pure-ftpd-without-clamav");
+		//	}
 		}
 
-		if ($this->main->max_size) {
+		if (isset($this->main->max_size)) {
 			lfile_put_contents("/var/qmail/control/databytes", $this->main->max_size);
 		}
 
-		$bcont = str_replace("%maps%", $maps, $bcont);
-		$bcont = str_replace("%domainkey%", $domkey, $bcont);
-		$bcont = str_replace("%virusscan%", $virus, $bcont);
-		$bcont = str_replace("%instance%", $instance, $bcont);
+		$slbin = "/var/qmail/bin/sendlimiter";
 
-		exec_with_all_closed("/etc/init.d/xinetd restart");
+		if (isset($this->main->send_limit)) {
+			lfile_put_contents("/var/qmail/control/sendlimit", $this->main->send_limit);
+			exec("'cp' -f ../file/qmail/var/qmail/bin/sendlimiter {$slbin}; chown root:qmail {$slbin}; chmod 755 {$slbin}; sh {$slbin}");
+		} else {
+			exec("'rm' -f /var/qmail/control/sendlimit");
+			exec("'cp' -f ../file/qmail/var/qmail/bin/sendlimiter {$slbin}; chown root:qmail {$slbin}; chmod 755 {$slbin}; sh {$slbin}");
+		}
 	}
 
 	function dbactionUpdate($subaction)
@@ -144,7 +181,7 @@ class Servermail__Qmail  extends lxDriverClass
 			case "update":
 				$this->queue_lifetime();
 				$this->save_myname();
-				$this->save_xinetd_qmail();
+				$this->save_control_qmail();
 				createRestartFile("qmail");
 				break;
 			case "spamdyke":
@@ -187,7 +224,7 @@ class Servermail__Qmail  extends lxDriverClass
 
 		lxfile_mkdir("/var/qmail/spamdyke/greylist/");
 
-		$bcont = lfile_get_contents("../file/template/spamdyke.conf");
+		$bcont = lfile_get_contents(getLinkCustomfile("../file/template", "spamdyke.conf"));
 		$bcont = str_replace("%lx_greet_delay%", sprintf("greeting-delay-secs=%d",$this->main->greet_delay), $bcont);
 		$bcont = str_replace("%lx_graylist_level%", $this->main->isOn('graylist_flag') ? "graylist-level=always-create-dir" : "graylist-level=none", $bcont);
 		$bcont = str_replace("%lx_graylist_min_secs%", sprintf("graylist-min-secs=%d",$this->main->graylist_min_secs), $bcont);
@@ -201,7 +238,10 @@ class Servermail__Qmail  extends lxDriverClass
 		$bcont = str_replace("%lx_dns_blacklist_entries%", $this->writeDnsBlist(), $bcont);
 
 		lfile_put_contents("/etc/spamdyke.conf", $bcont);
-		lfile_put_contents("/var/qmail/spamdyke/blacklist_ip", $this->writeDnsBlist());
+
+		// MR -- it's wrong. SO disabled and remove blaclist_ip entry
+	//	lfile_put_contents("/var/qmail/spamdyke/blacklist_ip", $this->writeDnsBlist());
+		exec("sed '/dns-blacklist-entry=/d' /var/qmail/spamdyke/blacklist_ip");
 	}
 
 	function deleteQueue()

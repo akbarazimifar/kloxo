@@ -20,11 +20,13 @@ class HtmlLib
 
 		if (csa($value, "<") || csa($value, ">") || csa($value, "(") || csa($value, ")")) {
 			log_security("XSS attempt: $value");
+
 			exit;
 		}
 
 		if (csa($value, "'")) {
 			log_security("SQL injection attempt: $value");
+
 			exit;
 		}
 	}
@@ -42,9 +44,11 @@ class HtmlLib
 				if (isset($k)) {
 					self::checkForScript($k);
 				}
+
 				if (isset($v['class'])) {
 					self::checkForScript($v['class']);
 				}
+
 				if (isset($v['nname'])) {
 					self::checkForScript($v['nname']);
 				}
@@ -97,6 +101,7 @@ class HtmlLib
 				$arvar = substr($key, 0, strpos($key, "_aaa_"));
 				$arkey = substr($key, strpos($key, "_aaa_") + 5);
 				$arval = $value;
+
 				if (!csa($arvar, "password") && !csa($arvar, "text")) {
 					$hvar[$arvar][$arkey] = $arval;
 				} else {
@@ -179,7 +184,9 @@ class HtmlLib
 			if (is_array($value)) {
 				foreach ($value as $k => &$v) {
 					if (is_array($v)) {
-						foreach ($v as $nk => &$nv) $nv = urldecode($nv);
+						foreach ($v as $nk => &$nv) {
+							$nv = urldecode($nv);
+						}
 					} else {
 						$v = urldecode($v);
 					}
@@ -271,7 +278,9 @@ class HtmlLib
 		$v = $this->__http_vars[$newkey];
 
 		if (is_array($v)) {
-			foreach ($v as $kk => $vv) $nv[$kk] = $vv;
+			foreach ($v as $kk => $vv) {
+				$nv[$kk] = $vv;
+			}
 		} else {
 			$nv = $v;
 		}
@@ -350,6 +359,11 @@ class HtmlLib
 
 		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
 
+		// MR -- because 'default' skin removed
+		if ($skin_name === 'default') {
+			$skin_name = 'feather';
+		}
+
 		$path = getLinkCustomfile("theme", "tab_{$skin_name}.php");
 
 		include_once $path;
@@ -377,13 +391,16 @@ class HtmlLib
 			if (!isset($pa[$k])) {
 				$pa[$k] = null;
 			}
+
 			if (!isset($pb[$k])) {
 				$pb[$k] = null;
 			}
 		}
 
-		foreach ($rvar as $k) if ($pa[$k] != $pb[$k]) {
-			return false;
+		foreach ($rvar as $k) {
+			if ($pa[$k] != $pb[$k]) {
+				return false;
+			}
 		}
 
 		return true;
@@ -966,6 +983,7 @@ class HtmlLib
 			if (!csb($k, "__v_dialog")) {
 				continue;
 			}
+
 			$talist[$k] = $a;
 		}
 
@@ -1901,7 +1919,7 @@ class HtmlLib
 		$realv = $variable;
 
 		//hack hack...
-		if ($class === 'installapp') {
+		if ($class === 'easyinstaller') {
 			if (strstr($variable, "addform")) {
 				$variable = strfrom($variable, "_");
 			}
@@ -2138,30 +2156,17 @@ class HtmlLib
 
 		<script>
 			function sendchmod(a, b) {
-				b.frm_ffile_c_select_f.value = 'perm';
 				b.frm_ffile_c_file_permission_f.value = a.user.value + a.group.value + a.other.value;
-				b.frm_ffile_c_target_f.value = a.frm_ffile_c_target_f.value;
 
-				if (a.frm_ffile_c_recursive_f.checked) {
-					if (confirm("<?=$login->getKeywordUC('permissions_confirm');?>")) {
-						b.frm_ffile_c_recursive_f.value = 'on';
-					} else {
-						b.frm_ffile_c_recursive_f.value = 'off';
-					}
+				if (typeof a.frm_ffile_c_target_f != 'undefined') {
+					b.frm_ffile_c_target_f.value = a.frm_ffile_c_target_f.value;
 				} else {
-					b.frm_ffile_c_recursive_f.value = 'off';
+					b.frm_ffile_c_target_f.value = null;
 				}
 
-				b.submit();
-			}
-
-			function sendchown(a, b) {
-				b.frm_ffile_c_select_f.value = 'own';
-				b.frm_ffile_c_user_f.value = a.frm_ffile_c_user_f.value;
-				b.frm_ffile_c_group_f.value = a.frm_ffile_c_group_f.value;
-
-				if (a.frm_ffile_c_recursive_f.checked) {
-					if (confirm("<?=$login->getKeywordUC('ownership_confirm');?>")) {
+				if (typeof a.frm_ffile_c_recursive_f != 'undefined') {
+			//	if (a.frm_ffile_c_recursive_f.checked) {
+					if (confirm("<?=$login->getKeywordUC('permissions_confirm');?>")) {
 						b.frm_ffile_c_recursive_f.value = 'on';
 					} else {
 						b.frm_ffile_c_recursive_f.value = 'off';
@@ -2181,93 +2186,11 @@ class HtmlLib
 		$post['frm_o_o'] = $this->__http_vars['frm_o_o'];
 		$this->print_input_vars($post);
 ?>
-			<input type="hidden" id="frm_ffile_c_select_f" name="frm_ffile_c_select_f" value="perm">
-
-			<input type="hidden" id="frm_ffile_c_user_f" name="frm_ffile_c_user_f" value="">
-			<input type="hidden" id="frm_ffile_c_group_f" name="frm_ffile_c_group_f" value="">
-
-			<input type="hidden" id="frm_ffile_c_target_f" name="frm_ffile_c_target_f" value="all">
 			<input type="hidden" id="frm_ffile_c_recursive_f" name="frm_ffile_c_recursive_f" value="Off">
-
-
+			<input type="hidden" id="frm_ffile_c_target_f" name="frm_ffile_c_target_f" value="all">
 			<input type="hidden" id="frm_action" name="frm_action" value="update">
 			<input type="hidden" id="frm_subaction" name="frm_subaction" value="perm">
 		</form>
-
-<div style="padding:0px; border:1px solid #eee; background-color: #def; width: 330px; margin: 0 auto;">
-	<table cellpadding="10" cellspacing="5" border="0" width="100%" style="background-color:#efead8;">
-		<tr>
-			<td nowrap width="100%" align="center"><?=$login->getKeywordUC('ownership_change');?></td>
-		</tr>
-	</table>
-	<form name="chown" method="get" action="/display.php" accept-charset="utf-8">
-		<table cellpadding="0" cellspacing="0" border="0" width="100%">
-			<tr>
-				<td colspan="4" height="4">&nbsp;</td>
-			</tr>
-			<tr>
-				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_current');?>:</td>
-				<td colspan="3"><?=$ffile->other_username;?></td>
-			</tr>
-			<tr>
-				<td colspan="4" height="4">&nbsp;</td>
-			</tr>
-			<tr>
-				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_user');?>:</td>
-				<td colspan="3"><select name="frm_ffile_c_user_f">
-						<option SELECTED value="<?=$ffile->__username_o;?>"><?=$ffile->__username_o;?></option>
-						<option value="apache">apache</option>
-<?php
-	if ($login->isAdmin()) {
-?>
-						<option value="root">root</option>
-<?php
-	}
-?>
-					</select>
-				</td>
-			</tr>
-			<tr>
-				<td colspan="4" height="4">&nbsp;</td>
-			</tr>
-			<tr>
-				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_group');?>:</td>
-				<td colspan="3"><select name="frm_ffile_c_group_f">
-						<option SELECTED value="<?=$ffile->__username_o;?>"><?=$ffile->__username_o;?></option>
-						<option value="apache">apache</option>
-<?php
-	if ($login->isAdmin()) {
-?>
-						<option value="root">root</option>
-<?php
-	}
-?>
-					</select>
-				</td>
-			</tr>
-<?php
-	if ($ffile->ttype === 'directory') {
-?>
-			<tr>
-				<td colspan="4" height="4">&nbsp;</td>
-			</tr>
-			<tr>
-				<td colspan="4">&nbsp;&nbsp;<input type="checkbox" name="frm_ffile_c_recursive_f">&nbsp;<?=$login->getKeywordUC('ownership_recursively');?></td>
-			</tr>
-<?php
-	}
-?>
-			<tr>
-				<td colspan="4" height="4">&nbsp;</td>
-			</tr>
-			<tr>
-				<td colspan="4" align="right"><input style="margin:5px" type="button" onclick="sendchown(document.chown,document.frmsend)" class="submitbutton" name="change" value="&nbsp;&nbsp;Change&nbsp;&nbsp;"></td>
-			</tr>
-		</table>
-	</form>
-</div>
-
-<br/>
 
 <div style="padding:0px; border:1px solid #eee; background-color: #def; width: 330px; margin: 0 auto;">
 	<table cellpadding="10" cellspacing="5" border="0" width="100%" style="background-color:#efead8;">
@@ -2364,6 +2287,129 @@ class HtmlLib
 	</script>
 
 </div>
+<?php
+	}
+
+	function print_file_ownership($ffile)
+	{
+		global $gbl, $sgbl, $login;
+
+		$imgheadleft = $login->getSkinDir() . '/images/top_lt.gif';
+		$imgheadright = $login->getSkinDir() . '/images/top_rt.gif';
+		$imgheadbg = $login->getSkinDir() . 'top_bg.gif';
+		$imgtopline = $login->getSkinDir() . '/images/top_line.gif';
+		$tablerow_head = $login->getSkinDir() . '/images/tablerow_head.gif';
+
+		$img_url = $this->get_expand_url();
+?>
+
+		<script>
+			function sendchown(a, b) {
+				b.frm_ffile_c_user_f.value = a.frm_ffile_c_user_f.value;
+				b.frm_ffile_c_group_f.value = a.frm_ffile_c_group_f.value;
+
+				if (typeof a.frm_ffile_c_recursive_f != 'undefined') {
+			//	if (a.frm_ffile_c_recursive_f.checked) {
+					if (confirm("<?=$login->getKeywordUC('ownership_confirm');?>")) {
+						b.frm_ffile_c_recursive_f.value = 'on';
+					} else {
+						b.frm_ffile_c_recursive_f.value = 'off';
+					}
+				} else {
+					b.frm_ffile_c_recursive_f.value = 'off';
+				}
+
+				b.submit();
+			}
+		</script>
+
+		<form name="frmsend" method="post" action="/display.php" accept-charset="utf-8">
+			<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+			<input type="hidden" name="frm_ffile_c_file_ownership_f">
+<?php
+		$post['frm_o_o'] = $this->__http_vars['frm_o_o'];
+		$this->print_input_vars($post);
+?>
+			<input type="hidden" id="frm_ffile_c_user_f" name="frm_ffile_c_user_f" value="">
+			<input type="hidden" id="frm_ffile_c_group_f" name="frm_ffile_c_group_f" value="">
+			<input type="hidden" id="frm_ffile_c_recursive_f" name="frm_ffile_c_recursive_f" value="Off">
+			<input type="hidden" id="frm_action" name="frm_action" value="update">
+			<input type="hidden" id="frm_subaction" name="frm_subaction" value="own">
+		</form>
+
+<div style="padding:0px; border:1px solid #eee; background-color: #def; width: 330px; margin: 0 auto;">
+	<table cellpadding="10" cellspacing="5" border="0" width="100%" style="background-color:#efead8;">
+		<tr>
+			<td nowrap width="100%" align="center"><?=$login->getKeywordUC('ownership_change');?></td>
+		</tr>
+	</table>
+	<form name="chown" method="get" action="/display.php" accept-charset="utf-8">
+		<table cellpadding="0" cellspacing="0" border="0" width="100%">
+			<tr>
+				<td colspan="4" height="4">&nbsp;</td>
+			</tr>
+			<tr>
+				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_current');?>:</td>
+				<td colspan="3"><?=$ffile->other_username;?></td>
+			</tr>
+			<tr>
+				<td colspan="4" height="4">&nbsp;</td>
+			</tr>
+			<tr>
+				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_user');?>:</td>
+				<td colspan="3"><select name="frm_ffile_c_user_f">
+						<option SELECTED value="<?=$ffile->__username_o;?>"><?=$ffile->__username_o;?></option>
+						<option value="apache">apache</option>
+<?php
+	if ($login->isAdmin()) {
+?>
+						<option value="root">root</option>
+<?php
+	}
+?>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="4" height="4">&nbsp;</td>
+			</tr>
+			<tr>
+				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_group');?>:</td>
+				<td colspan="3"><select name="frm_ffile_c_group_f">
+						<option SELECTED value="<?=$ffile->__username_o;?>"><?=$ffile->__username_o;?></option>
+						<option value="apache">apache</option>
+<?php
+	if ($login->isAdmin()) {
+?>
+						<option value="root">root</option>
+<?php
+	}
+?>
+					</select>
+				</td>
+			</tr>
+<?php
+	if ($ffile->ttype === 'directory') {
+?>
+			<tr>
+				<td colspan="4" height="4">&nbsp;</td>
+			</tr>
+			<tr>
+				<td colspan="4">&nbsp;&nbsp;<input type="checkbox" name="frm_ffile_c_recursive_f">&nbsp;<?=$login->getKeywordUC('ownership_recursively');?></td>
+			</tr>
+<?php
+	}
+?>
+			<tr>
+				<td colspan="4" height="4">&nbsp;</td>
+			</tr>
+			<tr>
+				<td colspan="4" align="right"><input style="margin:5px" type="button" onclick="sendchown(document.chown,document.frmsend)" class="submitbutton" name="change" value="&nbsp;&nbsp;Change&nbsp;&nbsp;"></td>
+			</tr>
+		</table>
+	</form>
+</div>
+
 <?php
 	}
 
@@ -2615,6 +2661,36 @@ class HtmlLib
 		return $rvr;
 	}
 
+	function object_variable_warning($stuff, $variable, $value = null)
+	{
+		$this->fix_stuff_or_class($stuff, $variable, $class, $svalue);
+
+		if ($value === null) {
+			$value = $svalue;
+		}
+
+		if ($this->is_special_variable($value)) {
+			$descr = $value->descr;
+			$value = $value->value;
+		} else {
+			$descr = $this->get_classvar_description_after_overload($class, $variable);
+		}
+
+		$desc = $descr[2];
+
+		if (is_array($value)) {
+			$value = implode('\n', $value);
+		}
+
+		$rvr = new FormVar();
+		$rvr->name = "frm_{$class}_c_$variable";
+		$rvr->desc = $desc;
+		$rvr->type = 'warning';
+		$rvr->value = $value;
+
+		return $rvr;
+	}
+
 	function xml_variable_endblock()
 	{
 		return ' </block> </start>';
@@ -2713,7 +2789,7 @@ class HtmlLib
 	{
 		$this->fix_stuff_or_class($stuff, $variable, $class, $nvalue);
 		$name = "frm_{$class}_c_{$variable}";
-
+/*
 		if (!$value) {
 			$value = $nvalue;
 		}
@@ -2721,7 +2797,7 @@ class HtmlLib
 		if ($nonameflag) {
 			$name = null;
 		}
-
+*/
 		$descr = $this->get_classvar_description_after_overload($class, $variable);
 		$val = exec_class_method($class, 'getTextAreaProperties', $variable);
 
@@ -3282,8 +3358,10 @@ class HtmlLib
 
 	function fix_variable_overload(&$descr, $classdesc)
 	{
-		foreach ($descr as &$d) if (strstr($d, "[%v]") !== false) {
-			$d = str_replace("[%v]", $classdesc, $d);
+		foreach ($descr as &$d) {
+			if (strstr($d, "[%v]") !== false) {
+				$d = str_replace("[%v]", $classdesc, $d);
+			}
 		}
 	}
 
@@ -3436,7 +3514,7 @@ class HtmlLib
 			}
 		}
 
-		// Ka has to come AFTER n. Otherwise it won't work in the getshowalist, especially for web/installapp combo.
+		// Ka has to come AFTER n. Otherwise it won't work in the getshowalist, especially for web/easyinstaller combo.
 		if (isset($post['k'])) {
 			$desc = get_classvar_description($post['k']['class']);
 
@@ -3591,7 +3669,7 @@ class HtmlLib
 					}
 				} elseif (csa($pname, "_lxurl:")) {
 					if (strtolower($classdesc[2]) !== 'information') {
-						$pname = preg_replace("/_lxurl:([^:]*):([^:]*):/", "<a title='{$variable}$2' class='insidelist' target='_blank' href='http://$1'> $2 </a>", $pname);
+						$pname = preg_replace("/_lxurl:([^:]*):([^:]*):/", "<a title='{$variable}$2' class='insidelist' target='_blank' href='//$1'> $2 </a>", $pname);
 					} else {
 						$x1 = preg_replace("/_lxurl:([^:]*):([^:]*):/", "$1", $pname);
 						$x2 = preg_replace("/_lxurl:([^:]*):([^:]*):/", "$2", $pname);
@@ -3602,7 +3680,7 @@ class HtmlLib
 							$x3 = $x2;
 						}
 
-						$pname = "<a title='{$variable}{$x2}' class='insidelist' target='_blank' href='http://{$x1}'> {$x3} </a>";
+						$pname = "<a title='{$variable}{$x2}' class='insidelist' target='_blank' href='//{$x1}'> {$x3} </a>";
 					}
 				} elseif (csa($pname, "_lxinurl:")) {
 					$url = preg_replace("/_lxinurl:([^:]*):([^:]*):/", "$1", $pname);
@@ -3759,6 +3837,7 @@ class HtmlLib
 					foreach ($a as $k => $v) {
 						if (strpos($property, $k) !== false) {
 							$spanchar = $v;
+							break;
 						}
 					}
 
@@ -3811,15 +3890,22 @@ class HtmlLib
 								$tcol = '#333';
 								$tico = '&#xf0d3;';
 
-								if (strpos($name, 'start') !== false) {
+								if (strpos($name, '_start') !== false) {
 									$tcol = '#3c3';
-								} elseif (strpos($name, 'stop') !== false) {
+									$tico = '&#xf571;';
+								} elseif (strpos($name, '_stop') !== false) {
 									$tcol = '#c33';
-								} elseif (strpos($name, 'restart') !== false) {
+									$tico = '&#xf572;';
+								} elseif (strpos($name, '_restart') !== false) {
 									$tcol = '#33c';
-								}
-
-								$a = array('password' => '&#xf03f;', 'process' => '&#xf4f2;', 'ip' => '&#xf51c;',
+									$tico = '&#xf11f;';
+								} elseif (strpos($name, '_enable') !== false) {
+									$tcol = '#3c3';
+									$tico = '&#xf571;';
+								} elseif (strpos($name, '_disable') !== false) {
+									$tcol = '#c33';
+									$tico = '&#xf572;';
+								}								$a = array('password' => '&#xf03f;', 'process' => '&#xf4f2;', 'ip' => '&#xf51c;',
 									'service' => '&#xf014;', 'usage' => '&#xf000;', 'file' => '&#xf095;',
 									'information' => '&#xf15a;', 'ticket' => '&#xf3dc;', 'utmp' => '&#xf0c1;',
 									'limit' => '&#xf189;', 'phpmyadmin' => '&#xf00b;', 'dns' => '&#xf07f;',
@@ -3832,6 +3918,7 @@ class HtmlLib
 								foreach ($a as $k => $v) {
 									if (strpos($name, $k) !== false) {
 										$tico = $v;
+										break;
 									}
 								}
 
@@ -3847,7 +3934,6 @@ class HtmlLib
 				}
 			}
 ?>
-
 			<td <?= $bgcolorstring ?> <?= $wrapstr ?> <?= $align ?> class="collist"> <span title='<?= $alt ?>'>
 <?php
 		//	$method = ($__external) ? "get" : $sgbl->method;
@@ -3861,7 +3947,6 @@ class HtmlLib
 
 			$this->print_input_vars($post);
 ?>
-
 				<a class="insidelist" <?= $target ?> <?= $urlhelp ?> href="<?= $url ?>"> <?= $pname ?> </a></span>
 			</td>
 <?php
@@ -4504,7 +4589,6 @@ class HtmlLib
 
 		if (!$sellist && !$this->isResourceClass($class)) {
 ?>
-
 		<br/>
 		<div class="div_showhide">
 			<fieldset style="padding: 0 ; text-align: center ; margin: 0; border: 0; border-top: 1px solid <?= $bordertop ?>">
@@ -4625,14 +4709,12 @@ class HtmlLib
 
 					$el = explode("__", $filtername);
 ?>
-
 					<td width="6" style="border: 1px solid #<?= $col ?>; <?= $bgcolorstring ?>">
 						<form name="perpage_<?= $i ?><?= $unique_name ?>" method="get" action="/display.php" accept-charset="utf-8">
 <?php
 					$this->print_current_input_var_unset_filter($filtername, array('pagesize', 'pagenum'));
 					$this->print_current_input_vars(array('frm_hpfilter'));
 ?>
-
 							<input type="hidden" id="frm_hpfilter[<?= $filtername ?>][pagesize]" name="frm_hpfilter[<?= $filtername ?>][pagesize]" value="<?= $l ?>">
 						</form>
 						<a href="javascript:perpage_<?= $i ?><?= $unique_name ?>.submit()">&nbsp;<?= $l ?>&nbsp;</a>
@@ -4642,7 +4724,6 @@ class HtmlLib
 				}
 			}
 ?>
-
 				</tr>
 			</table>
 		</div>
@@ -4655,7 +4736,6 @@ class HtmlLib
 			$divclass = "div_standard";
 		}
 ?>
-
 		<div class="<?= $divclass ?>">
 			<table style="margin:0;padding:0" cellspacing="1" cellpadding="3" width="100%" align="center">
 				<tr>
@@ -4669,7 +4749,6 @@ class HtmlLib
 		//	$checked = "checked disabled";
 			$checked = "";
 ?>
-
 					<td style="width: 10px; text-align: center; background:#cde">
 						<form name="formselectall<?= $unique_name ?>" method="get" accept-charset="utf-8">
 							<?= $filteropacitystringspan ?>
@@ -4735,7 +4814,6 @@ class HtmlLib
 					$wrapstr .= " style='background:#edc {$img_url}'";
 				}
 ?>
-
 					<td <?= $wrapstr ?> width="<?= $width ?>">
 						<table cellspacing="0" cellpadding="2"  border="0">
 							<tr>
@@ -4826,7 +4904,6 @@ class HtmlLib
 <?php
 		*/
 ?>
-
 					<tr height='22' id='<?= $rowuniqueid ?>' class='tablerow<?= $count ?>'>
 <?php
 
@@ -4924,7 +5001,6 @@ class HtmlLib
 			return;
 		}
 ?>
-
 			<script>
 				ckcount<?=$unique_name;?> = <?=$rowcount . ";  ";?>;
 
@@ -4935,7 +5011,6 @@ class HtmlLib
 <?php
 		if ($sellist) {
 ?>
-
 									<table <?= $blackstyle ?>>
 										<tr>
 											<td>
@@ -5230,16 +5305,14 @@ class HtmlLib
 		$noselect = (isset($button[1]) && $button[1]) ? 1 : 0;
 		$doconfirm = (isset($button[3]) && $button[3]) ? 1 : 0;
 		$imgbtnsep = $login->getSkinDir() . "/images/btn_sep.gif";
-
 ?>
 
 		<td width=10></td>
 		<td align="center" valign=bottom>
 
-			<form name="form<?= $form_name ?>" method="post" action="<?= $path ?>">
+			<form name="form<?= $form_name ?>" method="post" action="<?= $url ?>">
 				<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
 <?php
-
 		$this->print_input_vars($post);
 
 		if (!$noselect) {
@@ -5310,6 +5383,8 @@ class HtmlLib
 					$icon = "&#xf4c6;";
 				} elseif (strpos($var, '_remove') !== false) {
 					$icon = "&#xf5d0;";
+				} elseif (strpos($var, 'restart') !== false) {
+					$icon = "&#xf66c;";
 				} else {
 					$icon = "&#xf0a3;";
 				}
@@ -6878,7 +6953,7 @@ class HtmlLib
 			if (strpos($varname, '_num') !== false) {
 				$maxval_view = $maxval;
 			} else {
-				$maxval_view = number_format($maxval, 0, '', ',');
+				$maxval_view = number_format((int)$maxval, 0, '', ',');
 			}
 		}
 
@@ -6890,7 +6965,7 @@ class HtmlLib
 			}
 		} else {
 			if ($val) {
-				$val_view = number_format($val, 2, '.', ',');
+				$val_view = number_format((int)$val, 2, '.', ',');
 			} else {
 				$val_view = '0.00';
 			}
@@ -7855,13 +7930,43 @@ class HtmlLib
 					$value = preg_replace("+(https://[^ \n]*)+", "<a href='$1' target='_blank' style='text-decoration:underline'> " . $login->getKeywordUc('click_here') . " </a>", $value);
 			//	}
 
-				$value = str_replace("\n", "\n<br /> ", $value);
+				if ($value !== "") {
+					$value = str_replace("\n", "\n<br />", trim($value, "\n"));
+				} else {
+					$value = "&nbsp;";
+				}
+
 				$ttname = $variable->name;
 
 				// Don't ever make this hidden. It is absolutely not necessary. The value is available directly itself.
 ?>
 
-					<?= $variable_description ?>: &nbsp; <?= $value ?>
+					<?= $variable_description ?>
+					<div style='border: 1px solid #aaa; background-color: #dfe; padding: 2px'><?= $value ?></div>
+
+<?php
+				break;
+			case "warning" :
+				$value = $variable->value;
+				$value = self::fix_lt_gt($value);
+
+			//	if ($sgbl->isLxlabsClient()) {
+					$value = preg_replace("+(https://[^ \n]*)+", "<a href='$1' target='_blank' style='text-decoration:underline'> " . $login->getKeywordUc('click_here') . " </a>", $value);
+			//	}
+
+				if ($value !== "") {
+					$value = str_replace("\n", "\n<br />", trim($value, "\n"));
+				} else {
+					$value = "&nbsp;";
+				}
+
+				$ttname = $variable->name;
+
+				// Don't ever make this hidden. It is absolutely not necessary. The value is available directly itself.
+?>
+
+					<span style="color:#f22;font-weight:bold"><?= $variable_description ?></span>
+					<div style='border: 1px solid #ccc; background-color: #fdd; padding: 2px'><?= $value ?></div>
 
 <?php
 				break;
@@ -7881,12 +7986,251 @@ class HtmlLib
 
 				break;
 			case "file":
+				if ($block->form === 'upload_') {
+// MR -- 'progress bar' taken from https://www.script-tutorials.com/pure-html5-file-upload/ and then modified
+?>
+
+<style>
+/* * { margin:0; padding:0; } */
+#progress_speed {
+	float:left;
+	width:100px;
+}
+#progress_remaining,#progress_percent {
+	float:left;
+	width:80px;
+}
+#transfered {
+	float:right;
+	text-align:right;
+}
+.clear_both {
+	clear:both;
+}
+#progress_info {
+	font-size:10pt;
+	width:450px;
+}
+#progress_data {
+	width:400px;
+}
+#progress_error2,#progress_abort,#progress_warnsize {
+	color:#aaa;
+	display:none;
+	font-size:10pt;
+	font-style:italic;
+	margin-top:10px;
+}
+#progress {
+	//border:1px solid #ccc;
+	display:none;
+	//float:left;
+	height:18px;
+	text-align: center;
+	color: #fd0;
+
+	background: -moz-linear-gradient(#66cc00, #4b9500);
+	background: -ms-linear-gradient(#66cc00, #4b9500);
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%, #66cc00), color-stop(100%, #4b9500));
+	background: -webkit-linear-gradient(#66cc00, #4b9500);
+	background: -o-linear-gradient(#66cc00, #4b9500);
+	filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#66cc00', endColorstr='#4b9500');
+	-ms-filter: "progid:DXImageTransform.Microsoft.gradient(startColorstr='#66cc00', endColorstr='#4b9500')";
+	background: linear-gradient(#66cc00, #4b9500);
+}
+#progress_base {
+	width:400px;
+	height:18px;
+	background:#abc;
+	float:left;
+}
+</style>
+<script>
+// common variables
+var iBytesUploaded = 0;
+var iBytesTotal = 0;
+var iPreviousBytesLoaded = 0;
+var iMaxFilesize = 2146435072; // 2047MB
+var oTimer = 0;
+var sResultFileSize = '';
+
+function secondsToTime(secs) { // we will use this function to convert seconds in normal time format
+	var hr = Math.floor(secs / 3600);
+	var min = Math.floor((secs - (hr * 3600))/60);
+	var sec = Math.floor(secs - (hr * 3600) -  (min * 60));
+
+	if (hr < 10) {hr = "0" + hr; }
+	if (min < 10) {min = "0" + min;}
+	if (sec < 10) {sec = "0" + sec;}
+	if (hr) {hr = "00";}
+	return hr + ':' + min + ':' + sec;
+}
+
+function bytesToSize(bytes) {
+	var sizes = ['Bytes', 'KB', 'MB'];
+	if (bytes == 0) return 'n/a';
+	var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+	return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function fileSelected(e) {
+
+	// hide different warnings
+	document.getElementById('progress_error2').style.display = 'none';
+	document.getElementById('progress_abort').style.display = 'none';
+	document.getElementById('progress_warnsize').style.display = 'none';
+
+	document.getElementById('progress').style.width = '0';
+	document.getElementById('progress').innerHTML = '';
+	document.getElementById('progress_percent').innerHTML = '0%';
+	document.getElementById('progress_speed').innerHTML = '0 KB/s';
+	document.getElementById('progress_remaining').innerHTML = '00:00:00';
+	document.getElementById('transfered').innerHTML = '0 KB / 0 KB';
+
+	// get selected file element
+	var oFile = document.getElementById(e.id).files[0];
+
+	// little test for filesize
+	if (oFile.size > iMaxFilesize) {
+		document.getElementById('progress_warnsize').style.display = 'block';
+		return;
+	}
+
+	if (typeof FileReader === "undefined") {
+		document.getElementById('progress_error2').style.display = 'block';
+		document.getElementById('progress_error2').innerHTML = 'Upload progress bar not work';
+	} else {
+		// prepare HTML5 FileReader
+		var oReader = new FileReader();
+		// read selected file as DataURL
+		oReader.readAsDataURL(oFile);
+	}
+}
+
+function startUploading(e) {
+	// cleanup all temp states
+	iPreviousBytesLoaded = 0;
+	document.getElementById('progress_error2').style.display = 'none';
+	document.getElementById('progress_abort').style.display = 'none';
+	document.getElementById('progress_warnsize').style.display = 'none';
+	document.getElementById('progress_percent').innerHTML = '0%';
+	var oProgress = document.getElementById('progress');
+	oProgress.style.display = 'block';
+	oProgress.style.width = '0px';
+
+	if (typeof FormData !== "undefined") {
+		// get form data for POSTing
+		var vFD = new FormData(document.getElementById(e.form.id)); 
+
+		// create XMLHttpRequest object, adding few event listeners, and POSTing our data
+		var oXHR = new XMLHttpRequest();		
+		oXHR.upload.addEventListener('progress', uploadProgress, false);
+		oXHR.addEventListener('load', uploadFinish, false);
+		oXHR.addEventListener('progress_abort', uploadAbort, false);
+		oXHR.open('POST', '/display.php');
+		oXHR.send(vFD);
+
+		// set inner timer
+		oTimer = setInterval(doInnerUpdates, 300);
+   }
+}
+
+function doInnerUpdates() { // we will use this function to display upload speed
+	var iCB = iBytesUploaded;
+	var iDiff = iCB - iPreviousBytesLoaded;
+
+	// if nothing new loaded - exit
+	if (iDiff == 0)
+		return;
+
+	iPreviousBytesLoaded = iCB;
+	iDiff = iDiff * 2;
+	var iBytesRem = iBytesTotal - iPreviousBytesLoaded;
+	var secondsRemaining = iBytesRem / iDiff;
+
+	// update speed info
+	var iSpeed = iDiff.toString() + ' B/s';
+	if (iDiff > 1024 * 1024) {
+		iSpeed = (Math.round(iDiff * 100/(1024*1024))/100).toString() + ' MB/s';
+	} else if (iDiff > 1024) {
+		iSpeed =  (Math.round(iDiff * 100/1024)/100).toString() + ' KB/s';
+	}
+
+	document.getElementById('progress_speed').innerHTML = iSpeed;
+	document.getElementById('progress_remaining').innerHTML = secondsToTime(secondsRemaining);		
+}
+
+function uploadProgress(e) { // upload process in progress
+	if (e.lengthComputable) {
+		iBytesUploaded = e.loaded;
+		iBytesTotal = e.total;
+		var iPercentComplete = Math.round(e.loaded * 100 / e.total);
+		var iBytesTransfered = bytesToSize(iBytesUploaded);
+		var iBytesiBytesTotal = bytesToSize(iBytesTotal);
+
+		document.getElementById('progress').style.width = (iPercentComplete * 4).toString() + 'px';
+		document.getElementById('progress').innerHTML = iPercentComplete.toString() + '%';
+		document.getElementById('progress_percent').innerHTML = document.getElementById('progress').innerHTML;
+		document.getElementById('transfered').innerHTML = iBytesTransfered + ' / ' + iBytesiBytesTotal;
+
+		if (iPercentComplete == 100) {
+			document.getElementById('progress_info').style.backgroundColor = '#eee';
+			document.getElementById('progress_info').style.textAlign = 'center';
+			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
+		}
+	} else {
+		document.getElementById('progress').innerHTML = 'unable to compute';
+	}
+}
+
+function uploadFinish(e) { // upload successfully finished
+	window.location.href = '/display.php?<?php echo str_replace("frm_action=updateform&frm_subaction=upload", "frm_action=show", $_SERVER['QUERY_STRING']); ?>';
+
+	document.getElementById('progress_percent').innerHTML = '100%';
+	document.getElementById('progress').style.width = '400px';
+	document.getElementById('filesize').innerHTML = sResultFileSize;
+	document.getElementById('progress_remaining').innerHTML = '00:00:00';
+
+	clearInterval(oTimer);
+}
+
+function uploadError(e) { // upload error
+	document.getElementById('progress_error2').style.display = 'block';
+	clearInterval(oTimer);
+}  
+
+function uploadAbort(e) { // upload abort
+	document.getElementById('progress_abort').style.display = 'block';
+	clearInterval(oTimer);
+}
+</script>
+
+					<?= $variable_description ?> <?= $myneedstring ?> <br/>
+					<input class="filebox" type="file" name="<?= $variable->name ?>" id="<?= $variable->name ?>" size="30"  onclick="fileSelected(this);">
+					<div>&nbsp;</div>
+					<div id="progress_error2">An error occurred while uploading the file</div>
+					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
+					<div id="progress_warnsize">Your file is very big. We can't accept it. Please select more small file</div>
+
+					<div id="progress_info">
+						<div id="progress_base"><div id="progress">0%</div></div>
+						<div class="clear_both"></div>
+						<div id="progress_data">
+							<div id="progress_speed">0 KB/s</div>
+							<div id="progress_remaining">00:00:00</div>
+							<div id="progress_percent">0%</div>
+							<div id="transfered">0 KB / 0 KB</div>
+							<div class="clear_both"></div>
+						</div>
+					</div>
+<?php
+				} else {
 ?>
 
 					<?= $variable_description ?> <?= $myneedstring ?> <br/>
 					<input class="filebox" type="file" name="<?= $variable->name ?>" size="30">
 <?php
-
+				}
 				break;
 			case "htmltextarea":
 				if ($variable->height != "") {
@@ -7917,9 +8261,9 @@ class HtmlLib
 					}
 				}
 
-				if (file_exists("/usr/local/lxlabs/kloxo/httpdocs/editor/ckeditor/ckeditor.js")) {
-					$jsconfig = getLinkCustomfile("/usr/local/lxlabs/kloxo/httpdocs/editor/ckeditor", "kloxo.js");
-					$jsconfig = str_replace('/usr/local/lxlabs/kloxo/httpdocs', '', $jsconfig);
+				if (file_exists("../httpdocs/editor/ckeditor/ckeditor.js")) {
+					$jsconfig = getLinkCustomfile("../httpdocs/editor/ckeditor", "kloxo.js");
+					$jsconfig = str_replace('../httpdocs', '', $jsconfig);
 ?>
 
 <script type="text/javascript" src="/editor/ckeditor/ckeditor.js"></script>
@@ -7951,12 +8295,23 @@ class HtmlLib
 
 				if ($variable->height != "") {
 					$rows = trim($variable->height);
+
+					if ($ghtml->frm_subaction === 'edit') {
+						$height = '300px';
+					} else {
+						$height = '120px';
+					}
 				} else {
 					$rows = "5";
+					$height = '120px';
 				}
 
 				if ($variable->width != "") {
-					$cols = trim($variable->width);
+					if ($ghtml->frm_subaction === 'edit') {
+						$cols = '100%';
+					} else {
+						$cols = trim($variable->width);
+					}
 				} else {
 					$cols = "85%";
 				}
@@ -7978,7 +8333,7 @@ class HtmlLib
 				}
 ?>
 
-					<textarea nowrap id="textarea_<?= $variable->name ?>" class="<?= $rclass ?>" rows="<?= $rows ?>" style="margin:2px 0 2px 0;width:<?= $cols ?>;height:120px; border: 1px solid #aaa; padding: 2px;" name="<?= $variable->name ?>" <?= $readonly ?> size="30"><?= $value ?></textarea>
+					<textarea nowrap id="textarea_<?= $variable->name ?>" class="<?= $rclass ?>" rows="<?= $rows ?>" style="margin:2px 0 2px 0;width:<?= $cols ?>;height:<?= $height ?>; border: 1px solid #aaa; padding: 2px;" name="<?= $variable->name ?>" <?= $readonly ?> size="30"><?= $value ?></textarea>
 
 					<script type="text/javascript">
 						// createTextAreaWithLines('textarea_<?=$variable->name?>');
@@ -8003,6 +8358,8 @@ class HtmlLib
 				$bgcolor = null;
 				$onclick = null;
 
+				$type = 'submit';
+
 				if (strtolower($variable->value) === 'updateall') {
 				//	$string = "Click Here to Update all the objects that appear in the top selectbox with the above values";
 					$string = $login->getKeywordUc("update_all");
@@ -8014,12 +8371,17 @@ class HtmlLib
 						var updateallwarning2 = "<?= $login->getKeywordUc('updateall_warning2') ?>";
 					</script>
 <?php
+				} else {
+					if ($block->form === 'upload_') {
+						$onclick = "onclick='startUploading(this)'";
+						$type = 'button';
+					}
 				}
 ?>
 
 					<?= $string ?>
 
-					<input <?= $blackstyle ?> class="submitbutton" type="submit" <?= $onclick ?> id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="&nbsp;&nbsp;<?= $variable->value ?>&nbsp;&nbsp;">
+					<input <?= $blackstyle ?> class="submitbutton" type="<?= $type ?>" <?= $onclick ?> id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="&nbsp;&nbsp;<?= $variable->value ?>&nbsp;&nbsp;">
 <?php
 
 				break;
@@ -8129,18 +8491,22 @@ class HtmlLib
 			$fontcolor = "#999";
 		}
 
-		if ($pinfo !== '') {
-			$baselink = "a=" . $type;
+		$baselink = "a=" . $type;
 
-			if ($extr !== '') { $baselink .= "&sa=" . $extr; }
+		if ($extr !== '') { $baselink .= "&sa=" . $extr; }
 
-			if ($class !== '') {
-				if ($type === 'show') {
-					$baselink .= "&o=" . $class;
-				} else {
-					$baselink .= "&c=" . $class;
-				}
+		if ($class !== '') {
+			if ($type === 'show') {
+				$baselink .= "&o=" . $class;
+			} else {
+				$baselink .= "&c=" . $class;
 			}
+		}
+
+		// MR -- to know help link
+	//	xprint('baselink: ' . $baselink . '; ' . 'info: ' . $info);
+
+		if ($pinfo !== '') {
 ?>
 		<div id="infomsg" style="display: none; width: 600px; margin: 10px auto">
 			<div style="padding: 4px 0; margin: 0 10px;"><span style="background-color: #f88; padding: 4px 8px; font-weight: bold; color: #ffc"><?= $login->getKeywordUc('help') ?>: <?= $this->getTitleOnly($baselink) ?></span> <!-- <?= $info ?> --></div>
@@ -8179,6 +8545,10 @@ class HtmlLib
 	function convert_message($pinfo)
 	{
 		global $gbl, $sgbl, $login;
+
+		if (!isset($login->syncserver)) {
+			return $pinfo;
+		}
 
 		$pinfo = str_replace("[%_program_%]", $sgbl->__var_program_name, $pinfo);
 
@@ -9184,7 +9554,7 @@ class HtmlLib
 <?php include_once "{$simplicity_topbar_right}"; ?>
 			</div>
 
-			<div class="div_fixed_logo_right"><a href="http://mratwork.com"><img src="/login/images/kloxo-mr.png" height="40"/></a></div>
+			<div class="div_fixed_logo_right"><a href="//mratwork.com"><img src="/login/images/kloxo-mr.png" height="40"/></a></div>
 <?php
 		}
 

@@ -1,6 +1,31 @@
-### begin - web of '<?php echo $domainname; ?>' - do not remove/modify this line
+<?php
+$altconf = "/opt/configs/lighttpd/conf/customs/{$domainname}.conf";
+
+if (file_exists($altconf)) {
+	print("## MR - Use '{$altconf}' instead this file");
+	return;
+}
+?>
+### begin - web of '<?= $domainname; ?>' - do not remove/modify this line
 
 <?php
+
+$altconf = "/opt/configs/lighttpd/conf/customs/{$domainname}.conf";
+
+if (file_exists($altconf)) {
+	print("## MR - Use {$altconf} instead this file");
+	return;
+}
+
+$webdocroot = $rootpath;
+
+if (!isset($phpselected)) {
+	$phpselected = 'php';
+}
+
+if (!isset($timeout)) {
+	$timeout = '300';
+}
 
 if (($webcache === 'none') || (!$webcache)) {
 	$ports[] = '80';
@@ -11,11 +36,16 @@ if (($webcache === 'none') || (!$webcache)) {
 }
 
 foreach ($certnamelist as $ip => $certname) {
-	if (file_exists("/home/kloxo/client/{$user}/ssl/{$domainname}.key")) {
-		$certnamelist[$ip] = "/home/kloxo/client/{$user}/ssl/{$domainname}";
+	$cert_ip = $ip;
+
+	$sslpath = "/home/kloxo/ssl";
+
+	if (file_exists("{$sslpath}/{$domainname}.key")) {
+		$cert_file = "{$sslpath}/{$domainname}";
 	} else {
-		$certnamelist[$ip] = "/home/kloxo/httpd/ssl/{$certname}";
+		$cert_file = "{$sslpath}/{$certname}";
 	}
+
 }
 
 $statsapp = $stats['app'];
@@ -23,7 +53,7 @@ $statsprotect = ($stats['protect']) ? true : false;
 
 $tmpdom = str_replace(".", "\.", $domainname);
 
-$excludedomains = array("cp", "webmail");
+$excludedomains = array("cp", "webmail", "mail");
 
 $excludealias = implode("|", $excludedomains);
 
@@ -113,12 +143,56 @@ if ($reverseproxy) {
 $disabledocroot = "/home/kloxo/httpd/disable";
 $cpdocroot = "/home/kloxo/httpd/cp";
 
+if ($statsapp === 'webalizer') {
+	$statsdocroot = "/home/httpd/{$domainname}/webstats";
+} else {
+	$statsdocroot_base = "/home/kloxo/httpd/awstats/wwwroot";
+	$statsdocroot = "{$statsdocroot_base}/cgi-bin";
+}
+
 $globalspath = "/opt/configs/lighttpd/conf/globals";
 
-if (file_exists("{$globalspath}/custom.generic.conf")) {
-	$genericconf = 'custom.generic.conf';
+$acmechallenge_conf = getLinkCustomfile($globalspath, "acme-challenge.conf");
+
+$gzip_base_conf = getLinkCustomfile($globalspath, "gzip.conf");
+
+$generic_conf = getLinkCustomfile($globalspath, "generic.conf");
+
+if ($general_header) {
+	$gh = explode("\n", trim($general_header, "\n"));
+
+	$general_header_text = "";
+
+	foreach ($gh as $k => $v) {
+		list($key, $value) = explode(" \"", $v);
+
+		if (stripos($key, 'x-powered-by') !== false) {
+			// no action
+		} else {
+			$general_header_text .= "\tsetenv.add-response-header += ( \"{$key}\" => \"{$value}\" )\n";
+		}
+	}
+
+	$general_header_text .= "\tsetenv.add-response-header += ( \"X-Supported-By\" => \"Kloxo-MR 7.0\" )\n";
+}
+
+if ($https_header) {
+	$hh = explode("\n", trim($https_header, "\n"));
+
+	$https_header_text = "";
+
+	foreach ($hh as $k => $v) {
+		list($key, $value) = explode(" \"", $v);
+		$https_header_text .= "\t\tsetenv.add-response-header += ( \"{$key}\" => \"{$value} )\n";
+	}
+}
+
+if (intval($static_files_expire) > -1) {
+	$static_files_expire_text = "\t\$HTTP[\"url\"] =~ \".(jpe?g|gif|png|ico|css|pdf|js)\" {\n" .
+		"\t\texpire.url = ( \"\" => \"access plus {$static_files_expire} days\" )\n" .
+		"\t}";
 } else {
-	$genericconf = 'generic.conf';
+	$static_files_expire_text = '# No static files expire';
 }
 
 if ($disabled) {
@@ -128,36 +202,82 @@ if ($disabled) {
 }
 
 if ($disabled) {
+	$cpdocroot = $statsdocroot = $webmaildocroot = $webdocroot = $disabledocroot;
+}
+
 ?>
 
-## cp for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "^cp\.<?php echo str_replace(".", "\.", $domainname); ?>" {
+## cp for '<?=$domainname;?>'
+$HTTP["host"] =~ "^cp\.<?=str_replace(".", "\.", $domainname);?>" {
+
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
+
+<?=$general_header_text;?>
 
 	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $disabledocroot; ?>/"
+	var.fpmport = "<?=$fpmportapache;?>"
+	var.rootdir = "<?=$cpdocroot;?>/"
+	var.phpselected = "php"
+	var.timeout = "<?=$timeout;?>"
 
 	server.document-root = var.rootdir
 
-	index-file.names = ( <?php echo $indexorder; ?> )
+	index-file.names = ( <?=$indexorder;?> )
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
+	#include "<?=$globalspath;?>/switch_standard.conf"
+	include "<?=$globalspath;?>/php-fpm_standard.conf"
 
 }
 
 
-## webmail for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $domainname); ?>" {
+## stats for '<?=$domainname;?>'
+$HTTP["host"] =~ "^stats\.<?=str_replace(".", "\.", $domainname);?>" {
 
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
+
+<?=$general_header_text;?>
+
+	var.domain = "stats.<?=$domainname;?>"
 	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $disabledocroot; ?>/"
+	var.fpmport = "<?=$fpmportapache;?>"
+	var.rootdir = "<?=$statsdocroot;?>/"
+	var.phpselected = "php"
+	var.timeout = "<?=$timeout;?>"
 
 	server.document-root = var.rootdir
 
-	index-file.names = ( <?php echo $indexorder; ?> )
+	index-file.names = ( <?=$indexorder;?> )
+<?php
+if ($enablestats) {
+//	if ((!$reverseproxy) || (($reverseproxy) && ($webselected === 'front-end'))) {
+?>
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
+	include "<?=$globalspath;?>/stats.conf"
+<?php
+		if ($statsprotect) {
+?>
+
+	include "<?=$globalspath;?>/dirprotect_stats.conf"
+<?php
+		}
+//	}
+}
+?>
+
+}
+
+<?php
+if ($webmailremote) {
+?>
+
+## webmail for '<?=$domainname;?>'
+$HTTP["host"] =~ "^webmail\.<?=str_replace(".", "\.", $domainname);?>|^mail\.<?=str_replace(".", "\.", $domainname);?>" {
+
+	url.redirect = ( "/" =>  "http://<?=$webmailremote;?>/" )
 
 }
 
@@ -165,53 +285,31 @@ $HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $domainname); ?>" 
 } else {
 ?>
 
-## cp for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "^cp\.<?php echo str_replace(".", "\.", $domainname); ?>" {
+## webmail for '<?=$domainname;?>'
+$HTTP["host"] =~ "^webmail\.<?=str_replace(".", "\.", $domainname);?>|^mail\.<?=str_replace(".", "\.", $domainname);?>" {
+
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
+
+<?=$general_header_text;?>
 
 	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $cpdocroot; ?>/"
+	var.fpmport = "<?=$fpmportapache;?>"
+	var.rootdir = "<?=$webmaildocroot;?>/"
+	var.phpselected = "php"
+	var.timeout = "<?=$timeout;?>"
 
 	server.document-root = var.rootdir
 
-	index-file.names = ( <?php echo $indexorder; ?> )
+	index-file.names = ( <?=$indexorder;?> )
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-}
-
-<?php
-	if ($webmailremote) {
-?>
-
-## webmail for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $domainname); ?>" {
-
-	url.redirect = ( "/" =>  "<?php echo $protocol; ?><?php echo $webmailremote; ?>/" )
+	#include "<?=$globalspath;?>/switch_standard.conf"
+	include "<?=$globalspath;?>/php-fpm_standard.conf"
 
 }
 
 <?php
-	} else {
-?>
-
-## webmail for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $domainname); ?>" {
-
-	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $webmaildocroot; ?>/"
-
-	server.document-root = var.rootdir
-
-	index-file.names = ( <?php echo $indexorder; ?> )
-
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-}
-
-<?php
-	}
 }
 
 if ($domainredirect) {
@@ -222,28 +320,48 @@ if ($domainredirect) {
 
 		if ($redirpath) {
 			if ($disabled) {
-				$$redirfullpath = $disablepath;
-			} else {
-				$redirfullpath = str_replace('//', '/', $rootpath . '/' . $redirpath);
+			 	$$redirfullpath = $disablepath;
+		 	} else {
+				$redirfullpath = str_replace('//', '/', $webdocroot . '/' . $redirpath);
 			}
 ?>
 
-## web for redirect '<?php echo $redirdomainname; ?>'
-$HTTP["host"] =~ "^<?php echo str_replace(".", "\.", $redirdomainname); ?>" {
+## web for redirect '<?=$redirdomainname;?>'
+$HTTP["host"] =~ "^<?=str_replace(".", "\.", $redirdomainname);?>" {
 
-	var.user = "<?php echo $sockuser; ?>"
-	var.fpmport = "<?php echo $fpmport; ?>"
-	var.rootdir = "<?php echo $redirfullpath; ?>/"
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
+<?php
+		if ((!$reverseproxy) || ($webselected === 'front-end')) {
+?>
+
+	include "<?=$gzip_base_conf;?>"
+<?php
+		}
+?>
+
+<?=$general_header_text;?>
+
+	$HTTP["scheme"] == "https" {
+<?=$https_header_text;?>
+	}
+
+	var.user = "<?=$sockuser;?>"
+	var.fpmport = "<?=$fpmport;?>"
+	var.rootdir = "<?=$redirfullpath;?>/"
+	var.phpselected = "<?=$phpselected;?>"
+	var.timeout = "<?=$timeout;?>"
 
 	server.document-root = var.rootdir
 
-	index-file.names = ( <?php echo $indexorder; ?> )
+	index-file.names = ( <?=$indexorder;?> )
 <?php
 
 			if ($enablephp) {
 ?>
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
+	include "<?=$globalspath;?>/switch_standard.conf"
 <?php
 			}
 ?>
@@ -255,19 +373,20 @@ $HTTP["host"] =~ "^<?php echo str_replace(".", "\.", $redirdomainname); ?>" {
 			if ($disabled) {
 				$$redirfullpath = $disablepath;
 			} else {
-				$redirfullpath = $rootpath;
+				$redirfullpath = $webdocroot;
 			}
-
 ?>
 
-## web for redirect '<?php echo $redirdomainname; ?>'
-$HTTP["host"] =~ "^<?php echo str_replace(".", "\.", $redirdomainname); ?>" {
+## web for redirect '<?=$redirdomainname;?>'
+$HTTP["host"] =~ "^<?=str_replace(".", "\.", $redirdomainname);?>" {
 
-	var.rootdir = "<?php echo $redirfullpath; ?>/"
+	server.follow-symlink = "disable"
+
+	var.rootdir = "<?=$redirfullpath;?>/"
 
 	server.document-root = var.rootdir
 
-	url.redirect = ( "/" =>  "<?php echo $protocol; ?><?php echo $domainname; ?>/" )
+	url.redirect = ( "/" =>  "http://<?=$domainname;?>/" )
 
 }
 
@@ -281,66 +400,55 @@ if ($parkdomains) {
 		$parkdomainname = $dompark['parkdomain'];
 		$webmailmap = ($dompark['mailflag'] === 'on') ? true : false;
 
-		if ($disabled) {
+		if ($webmailremote) {
 ?>
 
-## webmail for parked '<?php echo $parkdomainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $parkdomainname); ?>" {
+## webmail for parked '<?=$parkdomainname;?>'
+$HTTP["host"] =~ "^webmail\.<?=str_replace(".", "\.", $parkdomainname);?>|^mail\.<?=str_replace(".", "\.", $parkdomainname);?>" {
+
+	server.follow-symlink = "disable"
+
+	url.redirect = ( "/" =>  "http://<?=$webmailremote;?>/" )
+
+}
+
+<?php
+
+		} elseif ($webmailmap) {
+			if ($webmailapp) {
+?>
+
+## webmail for parked '<?=$parkdomainname;?>'
+$HTTP["host"] =~ "^webmail\.<?=str_replace(".", "\.", $parkdomainname);?>|^mail\.<?=str_replace(".", "\.", $parkdomainname);?>" {
+
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
+
+<?=$general_header_text;?>
 
 	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $disabledocroot; ?>/"
+	var.fpmport = "<?=$fpmportapache;?>"
+	var.rootdir = "<?=$webmaildocroot;?>/"
+	var.phpselected = "php"
+	var.timeout = "<?=$timeout;?>"
 
 	server.document-root = var.rootdir
 
-	index-file.names = ( <?php echo $indexorder; ?> )
+	index-file.names = ( <?=$indexorder;?> )
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-}
-
-<?php
-		} else {
-			if ($webmailremote) {
-?>
-
-## webmail for parked '<?php echo $parkdomainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $parkdomainname); ?>" {
-
-	url.redirect = ( "/" =>  "<?php echo $protocol; ?><?php echo $webmailremote; ?>/" )
+	include "<?=$globalspath;?>/switch_standard.conf"
 
 }
 
 <?php
-
-			} elseif ($webmailmap) {
-				if ($webmailapp) {
+   			 }
+   		 } else {
 ?>
 
-## webmail for parked '<?php echo $parkdomainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $parkdomainname); ?>" {
-
-	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $webmaildocroot; ?>/"
-
-	server.document-root = var.rootdir
-
-	index-file.names = ( <?php echo $indexorder; ?> )
-
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-}
+## No mail map for parked '<?=$parkdomainname;?>'
 
 <?php
-				}
-			} else {
-?>
-
-## No mail map for parked '<?php echo $parkdomainname; ?>'
-
-<?php
-			}
 		}
 	}
 }
@@ -350,293 +458,267 @@ if ($domainredirect) {
 		$redirdomainname = $domredir['redirdomain'];
 		$webmailmap = ($domredir['mailflag'] === 'on') ? true : false;
 
-		if ($disabled) {
+		if ($webmailremote) {
 ?>
 
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $redirdomainname); ?>" {
+## webmail for redirect '<?=$redirdomainname;?>'
+$HTTP["host"] =~ "^webmail\.<?=str_replace(".", "\.", $redirdomainname);?>|^mail\.<?=str_replace(".", "\.", $redirdomainname);?>" {
+
+	server.follow-symlink = "disable"
+
+	url.redirect = ( "/" =>  "http://<?=$webmailremote;?>/" )
+
+}
+
+<?php
+		} elseif ($webmailmap) {
+			if ($webmailapp) {
+?>
+
+## webmail for redirect '<?=$redirdomainname;?>'
+$HTTP["host"] =~ "^webmail\.<?=str_replace(".", "\.", $redirdomainname);?>|^mail\.<?=str_replace(".", "\.", $redirdomainname);?>" {
+
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
+
+<?=$general_header_text;?>
 
 	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $disabledocroot; ?>/"
+	var.fpmport = "<?=$fpmportapache;?>"
+	var.rootdir = "<?=$webmaildocroot;?>/"
+	var.phpselected = "php"
+	var.timeout = "<?=$timeout;?>"
 
 	server.document-root = var.rootdir
 
-	index-file.names = ( <?php echo $indexorder; ?> )
+	index-file.names = ( <?=$indexorder;?> )
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-}
-
-<?php
-		} else {
-			if ($webmailremote) {
-?>
-
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $redirdomainname); ?>" {
-
-	url.redirect = ( "/" =>  "<?php echo $protocol; ?><?php echo $webmailremote; ?>/" )
+	include "<?=$globalspath;?>/switch_standard.conf"
 
 }
-
-<?php
-			} elseif ($webmailmap) {
-				if ($webmailapp) {
-?>
-
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-$HTTP["host"] =~ "^webmail\.<?php echo str_replace(".", "\.", $redirdomainname); ?>" {
-
-	var.user = "apache"
-	var.fpmport = "<?php echo $fpmportapache; ?>"
-	var.rootdir = "<?php echo $webmaildocroot; ?>/"
-
-	server.document-root = var.rootdir
-
-	index-file.names = ( <?php echo $indexorder; ?> )
-
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
-
-}
-
-<?php
-				}
-			} else {
-?>
-
-## No mail map for redirect '<?php echo $redirdomainname; ?>'
 
 <?php
 			}
+		} else {
+?>
+
+## No mail map for redirect '<?=$redirdomainname;?>'
+
+<?php
 		}
 	}
 }
 
-foreach ($certnamelist as $ip => $certname) {
-	$count = 0;
+if ($ip !== '*') {
+	$ipssl = "|" . $ip;
+} else {
+	$ipssl = "";
+}
 
-	foreach ($ports as &$port) {
-		$protocol = ($count === 0) ? "http://" : "https://";
-
-		if ($count === 0) {
-			if ($ip !== '*') {
-				$ipssl = "|" . $ip;
-			} else {
-				$ipssl = "";
-			}
-
-			if ($wwwredirect) {
+if ($wwwredirect) {
 ?>
 
-## web for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "<?php echo $domainname; ?><?php echo $ipssl; ?>" {
+## web for '<?=$domainname;?>'
+$HTTP["host"] =~ "<?=$domainname;?><?=$ipssl;?>" {
 
-	url.redirect = ( "^/(.*)" => "<?php echo $protocol; ?>www.<?php echo $domainname; ?>/$1" )
+	server.follow-symlink = "disable"
+
+	url.redirect = ( "^/(.*)" => "http://www.<?=$domainname;?>/$1" )
 }
 
 
-## web for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "<?php echo $serveralias; ?><?php echo $ipssl; ?>" {
+## web for '<?=$domainname;?>'
+$HTTP["host"] =~ "<?=$serveralias;?><?=$ipssl;?>" {
+
+	server.follow-symlink = "disable"
 <?php
-			} else {
+} else {
 ?>
 
-## web for '<?php echo $domainname; ?>'
-$HTTP["host"] =~ "<?php echo $serveralias; ?><?php echo $ipssl; ?>" {
+## web for '<?=$domainname;?>'
+$HTTP["host"] =~ "<?=$serveralias;?><?=$ipssl;?>" {
+
+	server.follow-symlink = "disable"
+
+	include "<?=$acmechallenge_conf;?>"
 <?php
-			}
-		} else {
-			if ($ip !== '*') {
-				foreach ($certnamelist as $ip => $certname) {
+		if ((!$reverseproxy) || ($webselected === 'front-end')) {
 ?>
 
-## web for '<?php echo $domainname; ?>'
-#$SERVER["socket"] == "<?php echo $ip; ?>:" + var.portssl {
-$SERVER["socket"] == ":" + var.portssl {
-
-	ssl.engine = "enable"
-
-	ssl.pemfile = "<?php echo $certname; ?>.pem"
+	include "<?=$gzip_base_conf;?>"
 <?php
-					if (file_exists("{$certname}.ca")) {
-?>
-	ssl.ca-file = "<?php echo $certname; ?>.ca"
-<?php
-					}
-?>
-
-	ssl.use-sslv2 = "disable"
-	ssl.use-sslv3 = "disable"
-<?php
-				}
-			} else {
-				if ($count !== 0) {
-					continue;
-				}
-			}
 		}
 ?>
 
-	var.domain = "<?php echo $domainname; ?>"
-	var.user = "<?php echo $sockuser; ?>"
-	var.fpmport = "<?php echo $fpmport; ?>"
+<?=$general_header_text;?>
+
+	$HTTP["scheme"] == "https" {
+<?=$https_header_text;?>
+
+	}
 <?php
-		if ($disabled) {
+}
 ?>
-	var.rootdir = "<?php echo $disabledocroot; ?>/"
+
+	var.domain = "<?=$domainname;?>"
+	var.user = "<?=$sockuser;?>"
+	var.fpmport = "<?=$fpmport;?>"
+	var.phpselected = "<?=$phpselected;?>"
+	var.timeout = "<?=$timeout;?>"
+
+	var.rootdir = "<?=$webdocroot;?>/"
 
 	server.document-root = var.rootdir
+
+	index-file.names = ( <?=$indexorder;?> )
+<?php
+if ($redirectionlocal) {
+	foreach ($redirectionlocal as $rl) {
+?>
+
+	alias.url  += ( "<?=$rl[0];?>/" => "$rootdir<?=str_replace("//", "/", $rl[1]);?>" )
+<?php
+	}
+}
+
+if ($redirectionremote) {
+	foreach ($redirectionremote as $rr) {
+		if ($rr[0] === '/') {
+			$rr[0] = '';
+		}
+
+		if ($rr[2] === 'both') {
+?>
+
+	url.redirect += ( "^(<?=$rr[0];?>/|<?=$rr[0];?>$)" => "http://<?=$rr[1];?>" )
 <?php
 		} else {
+			$protocol2 = ($rr[2] === 'https') ? "https://" : "http://";
 ?>
-	var.rootdir = "<?php echo $rootpath; ?>/"
 
-	server.document-root = var.rootdir
+	url.redirect += ( "^(/<?=$rr[0];?>/|/<?=$rr[0];?>$)" => "<?=$protocol2;?><?=$rr[1];?>" )
 <?php
 		}
-?>
+	}
+}
 
-	index-file.names = ( <?php echo $indexorder; ?> )
-<?php
-		if ($redirectionlocal) {
-			foreach ($redirectionlocal as $rl) {
-?>
-
-	alias.url  += ( "<?php echo $rl[0]; ?>" => "$rootdir<?php echo str_replace("//", "/", $rl[1]); ?>" )
-<?php
-			}
-		}
-
-		if ($redirectionremote) {
-			foreach ($redirectionremote as $rr) {
-				if ($rr[0] === '/') {
-					$rr[0] = '';
-				}
-				if ($rr[2] === 'both') {
-?>
-
-	url.redirect  += ( "^(<?php echo $rr[0]; ?>/|<?php echo $rr[0]; ?>$)" => "<?php echo $protocol; ?><?php echo $rr[1]; ?>" )
-<?php
-				} else {
-					$protocol2 = ($rr[2] === 'https') ? "https://" : "http://";
-?>
-
-	url.redirect  += ( "^(/<?php echo $rr[0]; ?>/|/<?php echo $rr[0]; ?>$)" => "<?php echo $protocol2; ?><?php echo $rr[1]; ?>" )
-<?php
-					if ($enablestats) {
-?>
-
-	include "<?php echo $globalspath; ?>/stats.conf"
-<?php
-					}
-				}
-			}
-		}
-
-		if (!$reverseproxy) {
-			if ($statsprotect) {
-?>
-
-	include "<?php echo $globalspath; ?>/dirprotect_stats.conf"
-<?php
-			}
-		}
-
-		if ($lighttpdextratext) {
+	if ($lighttpdextratext) {
 ?>
 
 	# Extra Tags - begin
-<?php echo $lighttpdextratext; ?>
+<?=$lighttpdextratext;?>
 
 	# Extra Tags - end
 <?php
-		}
+	}
 
+	if ((!$reverseproxy) && (file_exists("{$globalspath}/{$domainname}.conf"))) {
 		if ($enablephp) {
 ?>
 
-	include "<?php echo $globalspath; ?>/switch_standard.conf"
+	include "<?=$globalspath;?>/<?=$domainname;?>.conf"
 <?php
 		}
-
-		if (!$reverseproxy) {
-			if ($dirprotect) {
-				foreach ($dirprotect as $k) {
-					$protectpath = $k['path'];
-					$protectauthname = $k['authname'];
-					$protectfile = str_replace('/', '_', $protectpath) . '_';
+	} else {
+		if (($reverseproxy) && ($webselected === 'front-end')) {
+			if ($enablephp) {
 ?>
 
-	$HTTP["url"] =~ "^/<?php echo $protectpath; ?>[/$]" {
+	include "<?=$globalspath;?>/php-fpm_standard.conf"
+<?php
+			}
+		} else {
+?>
+
+	include "<?=$globalspath;?>/switch_standard.conf"
+<?php
+		}
+	}
+
+	if (!$reverseproxy) {
+		if ($dirprotect) {
+			foreach ($dirprotect as $k) {
+				$protectpath = $k['path'];
+				$protectauthname = $k['authname'];
+				$protectfile = str_replace('/', '_', $protectpath) . '_';
+?>
+
+	$HTTP["url"] =~ "^/<?=$protectpath;?>[/$]" {
 		auth.backend = "htpasswd"
-		auth.backend.htpasswd.userfile = "/home/httpd/" + var.domain + "/__dirprotect/<?php echo $protectfile; ?>"
-		auth.require = ( "/<?php echo $protectpath; ?>" => (
+		auth.backend.htpasswd.userfile = "/home/httpd/" + var.domain + "/__dirprotect/<?=$protectfile;?>"
+		auth.require = ( "/<?=$protectpath;?>" => (
 		"method" => "basic",
-		"realm" => "<?php echo $protectauthname; ?>",
+		"realm" => "<?=$protectauthname;?>",
 		"require" => "valid-user"
 		))
 	}
 <?php
-				}
 			}
 		}
+	}
 
-		if ($blockips) {
+	if ($blockips) {
 ?>
 
-	$HTTP["remoteip"] =~ "{<?php echo $blockips; ?>}" {
+	$HTTP["remoteip"] =~ "{<?=$blockips;?>}" {
 		url.access-deny = ( "" )
 	}
 <?php
-		}
+	}
 ?>
 
-	var.kloxoportssl = "<?php echo $kloxoportssl; ?>"
-	var.kloxoportnonssl = "<?php echo $kloxoportnonssl; ?>"
+	var.kloxoportssl = "<?=$kloxoportssl;?>"
+	var.kloxoportnonssl = "<?=$kloxoportnonssl;?>"
 
-	include "<?php echo $globalspath; ?>/<?php echo $genericconf; ?>"
+	include "<?=$generic_conf;?>"
 
 	alias.url += ( "/" => var.rootdir )
-
 <?php
-		if ($enablecgi) {
+	if ($enablecgi) {
 ?>
 
 	$HTTP["url"] =~ "^/cgi-bin" {
 		#cgi.assign = ( "" => "/home/httpd/" + var.domain + "/perlsuexec.sh" )
-		cgi.assign = ( "" => "/usr/bin/perl" )
+		cgi.assign = ( ".pl" => "/usr/bin/perl", ".py" => "/usr/bin/python", ".cgi" => "" )
 	}
 <?php
-		}
+	}
+
+	if ($enablestats) {
+?>
+
+	include "<?=$globalspath;?>/stats_log.conf"
+
+	url.redirect += ( "^(/stats/|/stats$)" => "//stats." + var.domain + "/" )
+<?php
+	}
 ?>
 
 	$HTTP["url"] =~ "^/" {
 <?php
-		if ($enablecgi) {
+	if ($enablecgi) {
 ?>
 		#cgi.assign = ( ".pl" => "/home/httpd/" + var.domain + "/perlsuexec.sh" )
-		cgi.assign = ( ".pl" => "/usr/bin/perl" )
+		cgi.assign = ( ".pl" => "/usr/bin/perl", ".py" => "/usr/bin/python", ".cgi" => "" )
 <?php
-		}
+	}
 
-		if ($dirindex) {
+	if ($dirindex) {
 ?>
 		dir-listing.activate = "enable"
 <?php
-		}
+	}
 ?>
 
 		## trick using 'microcache' not work; no different performance!
 		#expire.url = ( "" => "access 10 seconds" )
 	}
+
+<?=$static_files_expire_text;?>
+
+
 }
 
-<?php
-		$count++;
 
-	}
-}
-?>
-
-### end - web of '<?php echo $domainname; ?>' - do not remove/modify this line
+### end - web of '<?=$domainname;?>' - do not remove/modify this line

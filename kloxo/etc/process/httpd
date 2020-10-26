@@ -1,20 +1,13 @@
 #!/bin/sh
 
-echo "*** Process for HTTPD service ***"
+echo "*** Restart for HTTPD service ***"
 
 if [ ! -f /var/run/httpd.pid ] ; then
 	if [ -f /var/lock/subsys/httpd ] ; then
 		'rm' -f /var/lock/subsys/httpd
 	fi
-
-	/etc/rc.d/init.d/httpd start
-else
-	echo "  - No need started"
 fi
 
-#echo "  - Process with 'apachectl': graceful"
-#apachectl graceful
-#echo "No message for graceful"
+prog='httpd'
 
-echo "  - Process with 'httpd': restart"
-/etc/rc.d/init.d/httpd restart
+. /usr/local/lxlabs/kloxo/etc/process/service.inc

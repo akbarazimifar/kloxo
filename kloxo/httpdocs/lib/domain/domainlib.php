@@ -187,7 +187,6 @@ class Domaind extends DomainBase
 		return true;
 	}
 
-
 	function updatePassword($param)
 	{
 		$web = $this->getObject('web');
@@ -196,7 +195,7 @@ class Domaind extends DomainBase
 	/*
 		$ftpuser = $web->getFromList('ftpuser', $web->ftpusername);
 		$ftpuser->realpass = $param['password'];
-		$ftpuser->password = crypt($param['password']);
+		$ftpuser->password = crypt($param['password'], '$1$'.randomString(8).'$');
 		$ftpuser->setUpdateSubaction('password');
 	*/	
 		return parent::updatePassword($param);
@@ -274,11 +273,13 @@ class Domaind extends DomainBase
 		}
 		
 		if ($name === '__stub_domain_stats') {
-			return create_simpleObject(array('url' => "http://[%s]/stats/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
+		//	return create_simpleObject(array('url' => "http://[%s]/stats/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
+			return create_simpleObject(array('url' => "http://stats.[%s]/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
 		}
 
 		if ($name === '__stub_domain_awstats') {
-			return create_simpleObject(array('url' => "http://[%s]/awstats/awstats.pl?config=[%s]", 'purl' => 'c=domain&a=updateform&sa=show_awstats', 'target' => "target=_blank"));
+		//	return create_simpleObject(array('url' => "http://[%s]/awstats/awstats.pl?config=[%s]", 'purl' => 'c=domain&a=updateform&sa=show_awstats', 'target' => "target=_blank"));
+			return create_simpleObject(array('url' => "http://stats.[%s]/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
 		}
 		
 		if ($name === '__stub_check_dns') {
@@ -477,7 +478,7 @@ class Domaind extends DomainBase
 
 		if ($parent->priv->isOn('webhosting_flag')) {
 			$gen = $login->getObject('general')->generalmisc_b;
-			$webstatsprog = $gen->webstatisticsprogram;
+			$webstatsprog = (isset($gen->webstatisticsprogram)) ? $gen->webstatisticsprogram : null;
 			
 			if (!$webstatsprog) {
 				$webstatsprog = "awstats";
@@ -603,9 +604,7 @@ class Domaind extends DomainBase
 
 		$web->ftpusername = substr($dname, 0, 31);
 
-		$gen = $login->getObject('general')->generalmisc_b;
-
-		$web->__var_extrabasedir = $gen->extrabasedir;
+		$web->__var_extrabasedir = (isset($gen->extrabasedir)) ? $gen->extrabasedir : null;
 
 		$this->cpstatus = 'on';
 
@@ -714,20 +713,20 @@ class Domaind extends DomainBase
 		$web->fixSyncServer();
 		$dns->fixSyncServer();
 
-		$skelf = "__path_client_root/$parent->nname/skeleton.zip";
+		$skelf = "{$sgbl->__path_client_root}/{$parent->nname}/skeleton.zip";
 		
 		if (!lxfile_exists($skelf)) {
-			$skelf = "__path_client_root/admin/skeleton.zip";
+			$skelf = "{$sgbl->__path_client_root}/admin/skeleton.zip";
 		}
 
 		//--- for new user-skeleton (since 6.1.7)
 		if (!lxfile_exists($skelf)) {
 			// MR -- must using \- for zip name
-			$skelf = "__path_kloxo_httpd_root/" . "user\-skeleton.zip";
+			$skelf = "{$sgbl->__path_kloxo_httpd_root}/" . "user\-skeleton.zip";
 		}
 
 		if (!lxfile_exists($skelf)) {
-			$skelf = "__path_kloxo_httpd_root/skeleton.zip";
+			$skelf = "{$sgbl->__path_kloxo_httpd_root}/skeleton.zip";
 		}
 		if (!lxfile_exists($skelf)) {
 			$skelf = null;
@@ -777,24 +776,20 @@ class Domaind extends DomainBase
 
 		////////////////////
 
-	//	$uuser->syncserver = $web->syncserver;
 		$ftpuser->syncserver = $web->syncserver;
-	//	$ftpuser->directory =  "/domain/$this->nname";
 		// Hack hack uuser needs driver to be redone, since the driver was created when uuser had no syncserver....
-	//	$uuser->createSyncClass();
 		$ftpuser->createSyncClass();
 		$web->createSyncClass();
 		$mmail->createSyncClass();
 		$dns->createSyncClass();
 
-	//	$uuser->realpass = $this->realpass;
-	//	$uuser->password = crypt($this->realpass);
 		$ftpuser->realpass = $this->realpass;
-		$ftpuser->password = crypt($this->realpass);
+		$ftpuser->password = crypt($this->realpass, '$1$'.randomString(8).'$');
 		$mmail->remotelocalflag = 'local';
 
 		$web->stats_username = $this->nname;
-		$web->stats_password = null;
+		// MR -- stats always protected by default
+		$web->stats_password = randomString(8);
 
 		// Gotta Add postmaster...
 		$mailaccount = new Mailaccount($this->__masterserver, $this->__readserver, "postmaster@$this->nname");
@@ -844,13 +839,13 @@ class Domaind extends DomainBase
 		$this->AddObject('lxbackup', $backup);
 	*/
 
-	//	lxfile_mkdir("__path_program_home/domain/$this->nname/__backup");
+	//	lxfile_mkdir("{$sgbl->__path_program_home}/domain/{$this->nname}/__backup");
 
 		$this->lxclientpostAdd();
 
 		$this->generateDomainKey(true);
 
-	//	exec("sh /script/fixphp --domain={$this->nname} --nolog");
+	//	exec("sh /script/fixphp --domain={$this->nname}");
 	}
 
 	function generateDomainKey($dontwasflag)
@@ -988,10 +983,6 @@ class Domaind extends DomainBase
 		// the uuser is two steps removed from the main object (domain), and thus the automatic nname creation 
 		// doesn't seem to work. So we have to do it here.
 
-	/*
-		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password']);
-	*/
 		return $param;
 	}
 
@@ -1126,7 +1117,6 @@ class Domaind extends DomainBase
 
 		return $param;
 	}
-
 
 	static function addform($parent, $class, $typetd = null)
 	{
@@ -1298,7 +1288,7 @@ class Domaind extends DomainBase
 		}
 
 		$gen = $login->getObject('general')->generalmisc_b;
-		$webstatsprog = $gen->webstatisticsprogram;
+		$webstatsprog = (isset($gen->webstatisticsprogram)) ? $gen->webstatisticsprogram : null;
 		
 		if (!$webstatsprog) {
 			$webstatsprog = "awstats";
@@ -1360,10 +1350,11 @@ class Domaind extends DomainBase
 		$alist[] = create_simpleObject(array('url' => "$tmpurl", 'purl' => "o=web&a=updateform&sa=php_log", 'target' => "", '__internal' => true));
 
 		if ($webstatsprog === 'awstats') {
-			$alist[] = create_simpleObject(array('url' => "http://$this->nname/awstats/awstats.pl?config=$this->nname", 'purl' => 'c=domain&a=updateform&sa=show_awstats', 'target' => "target='_blank'"));
+		//	$alist[] = create_simpleObject(array('url' => "http://$this->nname/awstats/awstats.pl?config=$this->nname", 'purl' => 'c=domain&a=updateform&sa=show_awstats', 'target' => "target='_blank'"));
+			$alist[] = create_simpleObject(array('url' => "http://stats.$this->nname/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target='_blank'"));
 		} else {
 			if ($webstatsprog === 'webalizer') {
-				$alist[] = create_simpleObject(array('url' => "http://$this->nname/stats/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target='_blank'"));
+				$alist[] = create_simpleObject(array('url' => "http://stats.$this->nname/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target='_blank'"));
 			}
 		}
 
@@ -1383,7 +1374,7 @@ class Domaind extends DomainBase
 		$alist['__title_domain_classweb'] = $web->getTitleWithSync();
 	//	$alist['__title_domain_classweb'] = 'web';
 
-/*
+	/*
 		// MR -- not work under client except admin
 		$plist = $login->getList('pserver');
 
@@ -1393,13 +1384,17 @@ class Domaind extends DomainBase
 				break;
 			}
 		}
-*/
+	*/
+
 	//	$php = $this->getParentO()->getObject('phpini');
 
 	//	if ($php->phpini_flag_b->multiple_php_flag === 'on') {
-		if (file_exists('/usr/local/lxlabs/kloxo/etc/flag/enablemultiplephp.flg')) {
-			$alist['__v_dialog_phpini'] = "n=web&o=phpini&a=show";
-		}
+	//	if (file_exists('../etc/flag/enablemultiplephp.flg')) {
+		//	$alist['__v_dialog_phpini'] = "n=web&o=phpini&a=show";
+			$alist['__v_dialog_webbasics'] = "n=web&a=updateform&sa=webbasics";
+		//	$alist['__v_dialog_webselector'] = "n=web&a=updateform&sa=webselector";
+			$alist['__v_dialog_webfeatures'] = "n=web&a=updateform&sa=webfeatures";
+	//	}
 
 		$alist['__v_dialog_sslcert'] = "n=web&a=list&c=sslcert";
 
@@ -1409,13 +1404,16 @@ class Domaind extends DomainBase
 		$alist[] = "n=web&a=list&c=dirprotect";
 		$alist['__v_dialog_hotlink'] = "n=web&a=updateform&sa=hotlink_protection";
 		$alist['__v_dialog_ipblock'] = "n=web&a=updateform&sa=blockip";
-		
+
+	/*
+		// MR -- merge to 'web_basics'		
 		if ($login->priv->isOn('document_root_flag')) {
 			$alist[''] = "n=web&a=updateform&sa=docroot";
 		}
 		
 		$alist['__v_dialog_misc'] = "n=web&a=updateform&sa=configure_misc";
 		$alist['__v_dialog_dirin'] = "n=web&a=updateform&sa=dirindex";
+	*/
 		$alist[] = "n=web&a=show&l[class]=ffile&l[nname]=/";
 		$driverapp = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'ftpuser');
 	//	$alist[] = "n=web&a=list&c=ftpuser";
@@ -1467,10 +1465,9 @@ class Domaind extends DomainBase
 			}
 		}
 	*/
-		$alist['__v_dialog_comp'] = "n=web&a=list&c=component";
 
-		if (!$gen->isOn('disableinstallapp') && $this->getClientParentO()->priv->isOn('installapp_flag')) {
-			$alist[] = "n=web&a=show&k[class]=allinstallapp&k[nname]=installapp";
+		if (!$gen->isOn('disableeasyinstaller') && $this->getClientParentO()->priv->isOn('easyinstaller_flag')) {
+		//	$alist[] = "n=web&a=show&k[class]=all_easyinstaller&k[nname]=easyinstaller";
 		}
 	/*
 		$alist['action'][] = "a=update&sa=backup";
@@ -1493,12 +1490,14 @@ class Domaind extends DomainBase
 		$alist[] = "n=web&a=list&c=server_alias_a";
 		
 	//	if ($web->__driverappclass !== 'lighttpd') {
-			$alist[] = "n=web&a=list&c=webhandler";
-			$alist[] = "n=web&a=list&c=webmimetype";
+			// MR -- disable for awhile; TODO
+		//	$alist[] = "n=web&a=list&c=webhandler";
+		//	$alist[] = "n=web&a=list&c=webmimetype";
 	//	}
 		
 		$alist[] = "n=web&a=list&c=redirect_a";
-		$alist['__v_dialog_error'] = "n=web&a=updateform&sa=custom_error";
+		// MR -- disable for awhile; TODO
+	//	$alist['__v_dialog_error'] = "n=web&a=updateform&sa=custom_error";
 	/*
 		if ($this->getClientParentO()->priv->isOn('cron_manage_flag')) {
 			if ($this->getObject('web')->__driverappclass === 'apache' || $this->getObject('web')->__driverappclass === 'lighttpd') {
@@ -1594,7 +1593,7 @@ class Domaind extends DomainBase
 		$alist['__title_extra'] = $login->getKeywordUc('extra');
 		$alist[] = "n=web&a=list&c=server_alias_a";
 		$alist[] = "n=web&a=list&c=redirect_a";
-		$alist[] = "n=web&a=updateform&sa=configure_misc";
+	//	$alist[] = "n=web&a=updateform&sa=configure_misc";
 		$alist[] = "n=web&a=updateform&sa=custom_error";
 		$alist[] = "n=web&a=list&c=cron";
 
@@ -1846,16 +1845,19 @@ class all_domain extends domaind
 	//	$alist[] = "a=show";
 
 		if ($parent->isAdmin()) {
+			$alist[] = "a=list&c=all_client";
 			$alist[] = "a=list&c=all_domain";
 			$alist[] = "a=list&c=all_addondomain";
 			$alist[] = "a=list&c=all_mailaccount";
 			$alist[] = "a=list&c=all_mailforward";
+			$alist[] = "a=list&c=all_mailinglist";
 			$alist[] = "a=list&c=all_mysqldb";
 			$alist[] = "a=list&c=all_cron";
 			$alist[] = "a=list&c=all_ftpuser";
-			$alist[] = "a=list&c=all_mailinglist";
+			$alist[] = "a=list&c=all_sslcert";
 		} else {
 			if ($parent->isLte('reseller')) {
+				$alist[] = "a=list&c=all_client";
 				$alist[] = "a=list&c=all_domain";
 			}
 		}
@@ -1878,7 +1880,7 @@ class all_domain extends domaind
 			$nlist['mmailpserver'] = array('s', $rs);
 			$nlist['dnspserver'] = array('s', $rs);
 		}
-		
+
 		return $nlist;
 	}
 

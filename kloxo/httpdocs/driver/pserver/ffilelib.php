@@ -1,6 +1,6 @@
 <?php
 
-include_once "lib/php/coreFfilelib.php";
+include_once "lib/php/coreffilelib.php";
 
 class Ffile extends Lxclass
 {
@@ -22,16 +22,21 @@ class Ffile extends Lxclass
 	static $__desc_ttype_v_dirlink = array("", "", "directory_link");
 	static $__desc_ttype_v_filelink = array("", "", "file_link");
 	static $__desc_ttype_v_brokenlink = array("", "", "broken_link");
-	static $__desc_ttype_v_directory_copy = array("", "", "directory_(copy)");
+	static $__desc_ttype_v_directory_copy = array("", "", "directory_copy");
 	static $__desc_ttype_v_zip = array("", "", "zip");
 	static $__desc_ttype_v_tgz = array("", "", "tgz");
 	static $__desc_ttype_v_tbz2 = array("", "", "tbz2");
+	static $__desc_ttype_v_gz = array("", "", "gz");
+	static $__desc_ttype_v_bz2 = array("", "", "bz2");
 	static $__desc_ttype_v_txz = array("", "", "txz");
+	static $__desc_ttype_v_xz = array("", "", "xz");
+	static $__desc_ttype_v_p7z = array("", "", "p7z");
+	static $__desc_ttype_v_rar = array("", "", "rar");
 	static $__desc_ttype_v_tar = array("", "", "tar");
-	static $__desc_ttype_v_directory_cut = array("", "", "directory_(cut)");
+	static $__desc_ttype_v_directory_cut = array("", "", "directory_cut");
 	static $__desc_ttype_v_file = array("", "", "file");
-	static $__desc_ttype_v_file_copy = array("", "", "file_(copy)");
-	static $__desc_ttype_v_file_cut = array("", "", "file_(cut)");
+	static $__desc_ttype_v_file_copy = array("", "", "file_copy");
+	static $__desc_ttype_v_file_cut = array("", "", "file_cut");
 	static $__desc_ttype_v_ahtml = array("", "", "file_(html)");
 //	static $__desc_protect = array("e", "",  "p", "__int|goback=1&a=show&l[class]=dirprotect&l[nname]=hello");
 	static $__desc_protect = array("e", "", "p");
@@ -42,7 +47,8 @@ class Ffile extends Lxclass
 	static $__desc_uid = array("", "", "user");
 	static $__desc_content = array("t", "", "file");
 	static $__desc___username_o = array("", "", "user_name");
-	static $__desc_other_username = array("", "", "owner");
+//	static $__desc_other_username = array("", "", "owner");
+	static $__desc_other_username = array("", "", "owner", "a=updateform&sa=own");
 	static $__desc_pvrename = array("b", "", "ren", "a=updateform&sa=rename");
 	static $__desc_pvrename_v_rename = array("", "", "rename");
 	static $__desc_pvdownload = array("b", "", "dn", "a=update&sa=download");
@@ -62,15 +68,17 @@ class Ffile extends Lxclass
 	static $__desc_download_password_f = array("n", "", "password");
 	static $__desc_download_url_f = array("n", "", "upload_from_url");
 	static $__desc_download_overwrite_f = array("f", "", "overwrite_file");
-	static $__desc_file_permission_f = array("", "", "size_(k)");
+	static $__desc_file_permission_f = array("", "", "size_k");
+	static $__desc_file_ownership_f = array("", "", "size_k");
 	static $__desc_new_name_f = array("", "", "new_name");
 	static $__desc_newfolder_f = array("", "", "folder_name");
 	static $__desc_newfile_f = array("", "", "file_name");
 	static $__desc_zip_file_f = array("", "", "zip_file_name");
 	static $__desc_upload_file_f = array("F", "", "upload_file");
-	static $__desc_upload_overwrite_f = array("f", "", "overwrite_existing_file");
+	static $__desc_upload_overwrite_f = array("", "", "overwrite_file");
 	static $__desc_zip_overwrite_f = array("f", "", "overwrite_existing_files");
-	static $__desc_zip_extract_dir_f = array("", "", "extract_zip_to_here.");
+	static $__desc_zip_extract_dir_f = array("", "", "extract_zip_to_here");
+	static $__desc_extract_to_tar_f = array("f", "", "extract_to_tar_file");
 	static $__desc_fake_f = array("", "", "");
 	static $__desc_new_format_f = array("", "", "convert_to_format");
 
@@ -88,12 +96,13 @@ class Ffile extends Lxclass
 	static $__acdesc_update_paste = array("", "", "paste");
 	static $__acdesc_update_paste_inactive = array("", "", "paste");
 	static $__acdesc_update_download_from_url = array("", "", "upload_from_url");
-	static $__acdesc_update_download_from_http = array("", "", "upload_(http)");
-	static $__acdesc_update_download_from_ftp = array("", "", "upload_(ftp)");
+	static $__acdesc_update_download_from_http = array("", "", "upload_http");
+	static $__acdesc_update_download_from_ftp = array("", "", "upload_ftp");
 	static $__acdesc_update_copy = array("", "", "copy");
 	static $__acdesc_update_fancyedit = array("", "", "html_edit");
 	static $__acdesc_update_cut = array("", "", "cut");
 	static $__acdesc_update_perm = array("", "", "change_permissions");
+	static $__acdesc_update_own = array("", "", "change_ownership");
 	static $__acdesc_update_newdir = array("", "", "newdir");
 	static $__acdesc_update_newfile = array("", "", "newfile");
 	static $__acdesc_update_filedelete = array("", "", "trash");
@@ -139,8 +148,7 @@ class Ffile extends Lxclass
 
 	function getFullPath()
 	{
-		$this->fullpath = "{$this->root}/{$this->nname}";
-
+		$this->fullpath = preg_replace('/(\/){1,3}(.*)/', '/$2', "{$this->root}/{$this->nname}");
 		return $this->fullpath;
 	}
 
@@ -221,15 +229,15 @@ class Ffile extends Lxclass
 
 	function print_back()
 	{
-		?>
-	<table width=90%>
+?>
+	<table width='90%'>
 		<tr>
 			<td>
 				<a href="<?php echo $_SERVER['PHP_SELF'] ?>?frm_action=show&frm_o_nname=<?php echo dirname($this->nname) ?>"> Back </a>
 			</td>
 		</tr>
 	</table>
-	<?php
+<?php
 	}
 
 	function isDisplay($fpath = NULL)
@@ -292,7 +300,8 @@ class Ffile extends Lxclass
 		$this->upload_file_name = str_replace("'", "", $this->upload_file_name);
 		$this->setUpdateSubaction('upload_s');
 		$gbl->__this_redirect = $this->getCurDirUrl();
-		$this->upload_overwrite_f = $param['upload_overwrite_f'];
+	//	$this->upload_overwrite_f = $param['upload_overwrite_f'];
+		$this->upload_overwrite_f = 'on';
 
 		return null;
 	}
@@ -660,15 +669,27 @@ class Ffile extends Lxclass
 		// Hack Hack.. This should be done by display.php itself. But permissions are now handled separately..
 		$this->setUpdateSubaction('perm');
 
-		$this->select_f = $param['select_f'];
+		$this->recursive_f = $param['recursive_f'];
+		$this->target_f = $param['target_f'];
+		$this->newperm = $param['file_permission_f'];
 
-		$this->user_f = $param['user_f'];
-		$this->group_f = $param['group_f'];
+		$gbl->__this_redirect = $this->getParentDirUrl();
 
-		$this->target_f = $param['user_f'];
+		return null;
+	}
+
+	function updateOwn($param)
+	{
+		global $gbl, $sgbl, $login, $ghtml;
+
+		// Hack Hack.. This should be done by display.php itself. But permissions are now handled separately..
+		$this->setUpdateSubaction('own');
 
 		$this->recursive_f = $param['recursive_f'];
-		$this->newperm = $param['file_permission_f'];
+		$this->user_f = $param['user_f'];
+		$this->group_f = $param['group_f'];
+		$this->newown = $param['file_ownership_f'];
+
 		$gbl->__this_redirect = $this->getParentDirUrl();
 
 		return null;
@@ -713,18 +734,24 @@ class Ffile extends Lxclass
 		$this->getContent();
 
 		if (coreFfile::is_image($this->nname)) {
+			$name = basename($this->nname);
 			remove_if_older_than_a_minute_dir("tmp");
+			if (!file_exists("tmp/")) {
+				mkdir("tmp/");
+			}
 			$thumb = tempnam("tmp/", "image");
+			lxfile_mv($thumb, "$thumb.$name");
+			$thumb = "$thumb.$name";
 			lfile_put_contents($thumb, $this->image_content);
+			$thumb = "tmp/" . basename($thumb);
 			lxfile_generic_chmod($thumb, "0755");
-			$vlist['image_content'] = array('I', array("width" => 50, "height" => 50, "value" => "$thumb"));
+			$vlist['image_content'] = array('I', array("width" => "400", "height" => "100%", "value" => "$thumb"));
 			$vlist['image_width'] = null;
 			$vlist['image_height'] = null;
 		//	$vlist['image_type'] = null;
 			$vlist['copy_old_image_flag_f'] = null;
 			$dir = dirname($this->nname);
-			$name = basename($this->nname);
-			$vlist['old_image_name_f'] = array('m', "$dir/copy-$name");
+			$vlist['old_image_name_f'] = array('m', str_replace("//", "/", "$dir/copy-$name"));
 			$vlist['__v_button'] = "Resize";
 		} else {
 			if ($this->isOn('not_full_size')) {
@@ -740,6 +767,8 @@ class Ffile extends Lxclass
 
 	function updateform($subaction, $param)
 	{
+		global $login;
+
 		$vlist = null;
 
 		switch ($subaction) {
@@ -748,7 +777,8 @@ class Ffile extends Lxclass
 				$this->image_height = '20';
 				$vlist['image_width'] = null;
 				$vlist['image_height'] = null;
-				return $vlist;
+
+				break;
 
 			case "convert_image":
 				$extlist = array('gif' => 'gif', 'jpg' => 'jpg', 'png' => 'png');
@@ -756,7 +786,8 @@ class Ffile extends Lxclass
 				unset($extlist[$ext]);
 				$vlist['nname'] = array('M', null);
 				$vlist['new_format_f'] = array('s', $extlist);
-				return $vlist;
+
+				break;
 
 			case "diskspace":
 				$vlist['diskspace'] = array('M', "calculate disk space");
@@ -812,20 +843,31 @@ class Ffile extends Lxclass
 				$this->getContent();
 				$vlist['zipcontent'] = null;
 				$vlist['zip_extract_dir_f'] = array('m', dirname($this->nname));
+			
 			//	$vlist['zip_overwrite_f'] = null;
+
+				if (($this->ttype === 'tgz')
+						|| ($this->ttype === 'tbz2')
+						|| ($this->ttype === 'txz')) {
+
+					$vlist['extract_to_tar_f'] = null;
+				}
+
 				$vlist['__v_button'] = "Extract";
 
-				return $vlist;
+				break;
 
 			case "perm":
-				$vlist['select_f'] = array();
-
 				$vlist['file_permission_f'] = array();
+				$vlist['target_f'] = array();
+				$vlist['recursive_f'] = array();
 
+				break;
+
+			case "own":
+				$vlist['file_ownership_f'] = array();
 				$vlist['user_f'] = array();
 				$vlist['group_f'] = array();
-				$vlist['target_f'] = array();
-
 				$vlist['recursive_f'] = array();
 
 				break;
@@ -836,12 +878,12 @@ class Ffile extends Lxclass
 
 				break;
 
-			case "upload_s":
+			case "upload_s":	
+				// MR -- overwrite not work for upload with progress bar
+				$vlist['upload_overwrite_f'] = array('W', $login->getKeywordUc('upload_overwrite_warning'));
 				$vlist['upload_file_f'] = null;
-				$vlist['upload_overwrite_f'] = null;
 				$vlist['__v_button'] = "Upload";
-				
-				return $vlist;
+				break;
 
 			case "download_from_ftp":
 				$vlist['download_ftp_f'] = null;
@@ -851,19 +893,19 @@ class Ffile extends Lxclass
 				$vlist['download_overwrite_f'] = null;
 				$vlist['__v_button'] = "Upload";
 
-				return $vlist;
+				break;
 
 			case "backupftpupload":
 				$this->downloadFromBackup($vlist);
 
-				return $vlist;
+				break;
 
 			case "download_from_http":
 				$vlist['download_url_f'] = null;
 				$vlist['download_overwrite_f'] = null;
 				$vlist['__v_button'] = "Upload";
 
-				return $vlist;
+				break;
 		}
 
 	//	dprint($subaction);
@@ -926,8 +968,9 @@ class Ffile extends Lxclass
 
 	function getContent()
 	{
-	//	$stat['mode'] = $this->mode;
+		$stat['mode'] = $this->mode;
 		$stat['ttype'] = $this->ttype;
+	//	$stat['ttype'] = os_getZipType($this->getFullPath());
 
 		$stat = rl_exec_get(null, $this->__readserver, array("coreFfile", "getContent"), array($this->__username_o, $this->root, $this->getFullPath(), $stat, $this->numlines));
 
@@ -975,7 +1018,14 @@ class Ffile extends Lxclass
 		}
 
 		$alist['property'][] = 'a=show';
-		
+
+		$alist['property'][] = "a=updateform&sa=perm";
+		$alist['property'][] = "a=updateform&sa=own";
+
+		if ($this->nname !== '/') {
+			$alist['property'][] = "a=updateform&sa=rename";
+		}
+
 		if ($this->isOn('readonly')) {
 			if (!$this->is_dir()) {
 				$alist['property'][] = "a=update&sa=download";
@@ -1065,7 +1115,9 @@ class Ffile extends Lxclass
 	{
 		if ($this->ttype === 'zip' || $this->ttype === 'tar' 
 				|| $this->ttype === 'tgz' || $this->ttype === 'tbz2'
-				|| $this->ttype === 'txz') {
+				|| $this->ttype === 'gz'  || $this->ttype === 'bz2'
+				|| $this->ttype === 'txz' || $this->ttype === 'xz'
+				|| $this->ttype === 'p7z' || $this->ttype === 'rar') {
 			return true;
 		}
 
@@ -1086,28 +1138,6 @@ class Ffile extends Lxclass
 		}
 
 		return false;
-	}
-
-	function get_permissions($mode)
-	{
-	/*
-		$S_ISVTX    0001000; //  sticky bit (see below)
-		$S_IRWXU    00700 ;   // mask for file owner permissions
-		$S_IRUSR    00400 ;   // owner has read permission
-		$S_IWUSR    00200 ;   // owner has write permission
-		$S_IXUSR    00100 ;   // owner has execute permission
-		$S_IRWXG    00070 ;   // mask for group permissions
-		$S_IRGRP    00040 ;  //  group has read permission
-		$S_IWGRP    00020 ;   // group has write permission
-		$S_IXGRP    00010 ;  //  group has execute permission
-		$S_IRWXO    00007 ;   // mask for permissions for others (not in group)
-		$S_IROTH    00004 ;   // others have read permission
-		$S_IWOTH    00002 ;  //  others have write permisson
-		$S_IXOTH    00001 ;  //  others have execute permission
-	*/
-
-	//	if (mode & $S_IRUSR) {
-	//	}
 	}
 
 	function getPermissions(&$perm_number)
@@ -1367,9 +1397,11 @@ class Ffile extends Lxclass
 				continue;
 			}
 
-			$fpath = str_replace("//", "/", $fpathp . "/" . $file);
+		//	$fpath = str_replace("//", "/", $fpathp . "/" . $file);
+		//	$file = str_replace("//", "/", $parent->nname . "/" . $file);
 
-			$file = str_replace("//", "/", $parent->nname . "/" . $file);
+			$fpath = preg_replace('/(\/){1,3}(.*)/', '/$2', "{$fpathp}/{$file}");
+			$file = preg_replace('/(\/){1,3}(.*)/', '/$2', "{$parent->nname}/{$file}");
 			
 			if (!isset($parent->ffile_l)) {
 				$parent->ffile_l = null;

@@ -24,7 +24,7 @@ class webcache__squid extends webcache__
 	{
 		$nolog = null;
 
-		$pathsrc = "/usr/local/lxlabs/kloxo/file/squid";
+		$pathsrc = "../file/squid";
 		$pathdrv = "/opt/configs/squid";
 		$pathetc = "/etc";
 
@@ -35,7 +35,11 @@ class webcache__squid extends webcache__
 
 	//	if (!file_exists("/etc/squid")) { return; }
 
-		$t = getLinkCustomfile($pathdrv . "/etc/conf", "squid.conf");
+		if (file_exists("{$pathdrv}/etc/conf")) {
+			exec("'rm' -rf {$pathdrv}/etc/conf");
+		}
+
+		$t = getLinkCustomfile("{$pathdrv}/etc/conf/etc/squid", "squid.conf");
 		lxfile_cp($t, "$pathetc/squid/squid.conf");
 	}
 }

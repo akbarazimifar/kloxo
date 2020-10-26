@@ -1,5 +1,10 @@
 #!/bin/sh
 
+if [ -f ./custom.run ] ; then
+	. ./custom.run
+	return $?
+fi
+
 QMAILDUID=$(id -u qmaild)
 NOFILESGID=$(id -g qmaild)
 MAXSMTPD=$(cat /var/qmail/control/concurrencyincoming)
@@ -20,7 +25,7 @@ else
 	RECORDIO="/usr/bin/recordio"
 fi
 
-#BLACKLIST=`cat /var/qmail/control/blacklists`
+#BLACKLIST=$(cat /var/qmail/control/blacklists)
 #RBLSMTPD="/usr/bin/rblsmtpd"
 
 if [ -f /var/qmail/control/spamdyke ] ; then
@@ -45,9 +50,9 @@ fi
 
 if [ -f /var/qmail/control/softlimit ] ; then
 	### MR -- softlimit file must content with '/usr/bin/softlimit -m SOFTLIMITVAR'
-	### where SOFTLIMITVAR is 72000000 for 64bit and 18000000
+	### where SOFTLIMITVAR is 72000000 for 64bit and 18000000 for 32bit OS
 	### Note: incresing SOFTLIMITVAR if not enough (example: because 'login fail')
-	SOFTLIMIT=$(cat /var/qmail/control/softlimit)
+	SOFTLIMIT=$(cat /var/qmail/control/softlimit|tr '\r' ' '|tr '\n' ' ')
 else
 	SOFTLIMIT=""
 fi

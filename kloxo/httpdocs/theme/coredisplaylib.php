@@ -886,7 +886,7 @@ function __ac_desc_Update($object)
 			$ret = do_update($object, $subaction, $list);
 		} else {
 			if (!$list) {
-				print_die("List not set for Multiple Update");
+			//	print_die("List not set for Multiple Update");
 			}
 
 			foreach ($list as $l) {
@@ -1113,6 +1113,12 @@ function do_updateform($object, $subaction)
 		// Hack Hack Hack... Cannot handle file permissions neatly now... Just calling the whole thing..
 		if (isset($vlist['file_permission_f'])) {
 			$ghtml->print_file_permissions($object);
+
+			return;
+		}
+
+		if (isset($vlist['file_ownership_f'])) {
+			$ghtml->print_file_ownership($object);
 
 			return;
 		}
@@ -1546,6 +1552,12 @@ function create_xml($object, $stuff, $ret)
 
 				continue;
 			}
+
+			if (csa($v[0], 'W')) {
+				$string[] = $ghtml->object_variable_warning($stuff, $k, $v[1]);
+
+				continue;
+			}
 		}
 
 		if (csa($descr[0], 'F')) {
@@ -1625,9 +1637,9 @@ function create_xml($object, $stuff, $ret)
 		$gbl->c_session->write();
 	}
 */
-	$token = getCSRFToken();
+//	$token = getCSRFToken();
 
-	$string[] = $ghtml->object_variable_hidden("frm_token", $token);
+//	$string[] = $ghtml->object_variable_hidden("frm_token", $token);
 
 	$string[] = $ghtml->object_variable_hidden("frm_action", $action);
 
@@ -1920,7 +1932,7 @@ function print_navigation($navig)
 ?>
 	</div>
 </td>
-<td align="right"><div style="padding: 2px"><span style='font-weight: bold; color: #3498db'>::&nbsp;<?php echo $login->getKeywordUc('click_help'); ?><span>&nbsp;::&nbsp;</div></td>
+<td align="right"><div style="padding: 2px"><span style='font-weight: bold; color: #3498db'><?php echo $login->getKeywordUc('login_as'); ?>&nbsp;'<?php echo $login->nname; ?>'&nbsp;&mdash;&nbsp;<?php echo $login->getKeywordUc('click_help'); ?><span>&nbsp;</div></td>
 </tr></table>
 
 <?php
@@ -2068,7 +2080,6 @@ function password_contact_check()
 	}
 
 	if (check_raw_password('client', 'admin', 'admin')) {
-/*
 ?>
 
 		<br/>
@@ -2088,9 +2099,10 @@ function password_contact_check()
 		<br/>
 <?php
 		exit;
-*/
+
 		// MR -- change to redirect to 'password' page
-		$ghtml->print_redirect($ghtml->getFullUrl("a=updateform&sa=password"), $gbl->__this_window_url);
+		// disable because trouble if slave using admin as password
+	//	$ghtml->print_redirect($ghtml->getFullUrl("a=updateform&sa=password"), $gbl->__this_window_url);
 	}
 }
 

@@ -160,10 +160,9 @@ class Ipaddress extends Lxdb
 		foreach ($list as $row) {
 			list($devname, $id) = explode("-", $row);
 
-			// MR -- not work with 'if' for OpenVZ
-		//	if (!isset($id) || $id === null || $id = "") {
-				$result[] = $devname;
-		//	}
+			$result[] = $devname;
+			// MR -- assume device number are 0-9
+			$result[] = 'NAT' . substr($devname, -1);
 		}
 
 		return array_unique($result);
@@ -414,7 +413,7 @@ class Ipaddress extends Lxdb
 
 		// MR -- add for missing (lighttpd error when select because need .pem file
 		if (!lxfile_exists("{$spath}/$name.pem")) {
-			exec("cat {$ppath}/file/ssl/default.crt {$ppath}/file/ssl/default.key > {$ppath}/file/ssl/default.pem");
+			exec("cat {$ppath}/file/ssl/default.key {$ppath}/file/ssl/default.crt > {$ppath}/file/ssl/default.pem");
 			lxfile_cp("{$ppath}/file/ssl/default.pem", "{$spath}/$name.pem");
 		}
 
@@ -610,7 +609,11 @@ class Ipaddress extends Lxdb
 		}
 
 		if (!self::isValidIpaddress($param['netmask'])) {
-			throw new lxException($login->getThrow("invalid_netmask"), '', $param['netmask']);
+			if (strpos($param['devname'], 'NAT') !== false) {
+				// no action
+			} else {
+				throw new lxException($login->getThrow("invalid_netmask"), '', $param['netmask']);
+			}
 		}
 
 		$sq = new Sqlite($parent->__masterserver, "ipaddress");
@@ -654,8 +657,14 @@ class Ipaddress extends Lxdb
 		}
 		
 		$param['ipaddr'] = trim($param['ipaddr']);
-		$param['gateway'] = trim($param['gateway']);
-		$param['netmask'] = trim($param['netmask']);
+
+		if (strpos($dev, 'NAT') !== false) {
+			$param['gateway'] = trim($param['gateway']);
+			$param['netmask'] = trim($param['netmask']);
+		} else {
+			$param['gateway'] = '';
+			$param['netmask'] = '';
+		}
 
 		self::VerifyString($parent, $param);
 

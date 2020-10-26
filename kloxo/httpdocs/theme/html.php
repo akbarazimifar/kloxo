@@ -473,7 +473,7 @@ class Html extends Htmllib
 		//	$ret = str_replace("//", "/", $ret);
 			// MR -- change to
 			$ret = "/$ret/$basename";
-			$ret = preg_replace('/(\/){1,3}(.*)/', '$2', $ret);
+			$ret = preg_replace('/(\/){1,3}(.*)/', '/$2', $ret);
 
 ?>
 

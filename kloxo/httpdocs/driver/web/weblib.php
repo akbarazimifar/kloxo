@@ -129,7 +129,7 @@ class Redirect_a extends LxaClass
 			$vlist['httporssl'] = array('s', array('both', 'http', 'https'));
 		}
 
-		$vlist['nname'] = array('m', array('pretext' => "$parent->nname/"));
+		$vlist['nname'] = array('m', array('pretext' => "{$parent->nname}/"));
 
 		if ($typetd['val'] === 'local') {
 			$vlist['redirect'] = array('L', "/");
@@ -205,11 +205,15 @@ class SubWeb_a extends LxaClass
 
 class Customerror_b extends lxaClass
 {
-	static $__desc_url_400 = array("", "", "_400_(bad_request)");
-	static $__desc_url_401 = array("", "", "401_(authorization_required)");
-	static $__desc_url_403 = array("", "", "403_(forbidden)");
-	static $__desc_url_404 = array("", "", "404_(not_found)");
-	static $__desc_url_500 = array("", "", "500_(internal_server_error)");
+	static $__desc_url_400 = array("", "", "400_bad_request");
+	static $__desc_url_401 = array("", "", "401_authorization_required");
+	static $__desc_url_403 = array("", "", "403_forbidden");
+	static $__desc_url_404 = array("", "", "404_not_found");
+	static $__desc_url_500 = array("", "", "500_internal_server_error");
+	static $__desc_url_501 = array("", "", "501_not_implemented");
+	static $__desc_url_502 = array("", "", "502_bad_gateway");
+	static $__desc_url_503 = array("", "", "503_service_unavailable");
+	static $__desc_url_504 = array("", "", "504_gateway_timeout");
 }
 
 class Server_Alias_a extends Lxaclass
@@ -301,20 +305,21 @@ class Web extends Lxdb
 	static $__desc_indexfile_list = array("", "", "index_file_order");
 	static $__desc_lighty_pretty_path_f = array("n", "", "installed_path");
 	static $__desc_hotlink_flag = array("f", "", "enable_hotlink_protection");
-	static $__desc_text_hotlink_allowed = array("", "", "allowed_domains_(one_per_line)");
-	static $__desc_hotlink_redirect = array("", "", "redirect_to_(img)");
+	static $__desc_text_hotlink_allowed = array("", "", "allowed_domains");
+	static $__desc_hotlink_redirect = array("", "", "redirect_to_img");
 	static $__desc_fcgi_children = array("f", "", "use_php_fcgi_children");
 	static $__desc_text_blockip = array("t", "", "block_ip");
 	static $__desc_docroot = array("", "", "document_root");
 	static $__desc_email = array("", "", "email");
 	static $__desc_selist = array("", "", "search_engine_list");
 	static $__desc_force_www_redirect = array("f", "", "force_redirect_domain.com_to_www.domain.com");
+	static $__desc_force_https_redirect = array("f", "", "force_redirect_http_to_https");
 
-	static $__desc_ssl_flag = array("q", "", "enable_ssl_(only_on_linux)");
+	static $__desc_ssl_flag = array("q", "", "enable_ssl");
 	static $__desc_awstats_flag = array("q", "", "enable_awstats");
-	static $__desc_dotnet_flag = array("q", "", "enable_asp.net_(windows_only)");
+	static $__desc_dotnet_flag = array("q", "", "enable_asp.net");
 	static $__desc_cron_manage_flag = array("q", "", "allow_scheduler_management");
-	static $__desc_installapp_flag = array("q", "", "enable_installapp");
+	static $__desc_easyinstaller_flag = array("q", "", "enable_easyinstaller");
 	static $__desc_text_lighty_rewrite = array("t", "", "lighttp_rewrite_rule");
 //	static $__desc_subweb_a_num = array("q", "",  "number_of_subdomains");
 	static $__desc_cron_minute_flag = array("q", "", "allow_minute_management_for_cron");
@@ -337,16 +342,30 @@ class Web extends Lxdb
 	static $__desc_ffile_o = array('', '', '', '');
 	static $__desc_dirprotect_l = array('db', '', '', '');
 	static $__desc_ftpuser_l = array("Rqdtb", "", "");
-//	static $__desc_installappsnapshot_l = array("d", "", "");
+	static $__desc_easyinstallersnapshot_l = array("d", "", "");
 	static $__desc_component_l = array("", "", "");
 	static $__desc_rubyrails_l = array("qdb", "", "");
 	static $__desc_odbc_l = array("db", "", "");
 	static $__desc_davuser_l = array("db", "", "");
 	static $__desc_phpini_o = array("db", "", "");
 	static $__desc_cron_l = array("db", "", "");
-	static $__desc_installapp_l = array("db", "", "");
-	static $__desc_allinstallapp_l = array("", "", "");
+	static $__desc_easyinstaller_l = array("db", "", "");
+	static $__desc_all_easyinstaller_l = array("", "", "");
 	static $__desc_ftpsession_l = array("v", "", "");
+	static $__desc_weblastvisit_l = array("", "", "");
+
+	static $__desc_web_selected = array("", "", "web_selected");
+	static $__desc_php_selected = array("", "", "php_selected");
+	static $__desc_time_out = array("", "", "time_out");
+
+	static $__desc_microcache_time = array("", "", "microcache_time");
+	static $__desc_microcache_insert_into = array("", "", "microcache_insert_into");
+
+	static $__desc_general_header = array("t", "", "general_header");
+	static $__desc_https_header = array("t", "", "https_header");
+	static $__desc_static_files_expire = array("", "", "static_files_expire");
+
+	static $__desc_disable_pagespeed = array("f", "", "disable_pagespeed");
 
 	static $__acdesc_update_permalink = array("", "", "permalink");
 	static $__acdesc_update_sesubmit = array("", "", "search_engine");
@@ -387,6 +406,11 @@ class Web extends Lxdb
 
 	static $__desc_sslcert_l = array("d", "", "");
 
+//	static $__acdesc_update_webselector = array("", "", "web_selector");
+	static $__acdesc_update_webfeatures = array("", "", "web_features");
+
+	static $__acdesc_update_webbasics = array("", "", "web_basics");
+
 	function createExtraVariables()
 	{
 		global $gbl, $sgbl, $login, $ghtml;
@@ -394,7 +418,7 @@ class Web extends Lxdb
 		$gen = $login->getObject('general')->generalmisc_b;
 		$port = $login->getObject('general')->portconfig_b;
 
-		$webstatsprog = $gen->webstatisticsprogram;
+		$webstatsprog = (isset($gen->webstatisticsprogram)) ? $gen->webstatisticsprogram : null;
 
 		if (!$webstatsprog) {
 			$webstatsprog = "awstats";
@@ -420,10 +444,10 @@ class Web extends Lxdb
 		}
 
 		if (!isset($this->corelocation)) {
-			$this->corelocation = "__path_customer_root";
+			$this->corelocation = $sgbl->__path_customer_root;
 		}
 
-		$this->__var_extrabasedir = $gen->extrabasedir;
+		$this->__var_extrabasedir = (isset($gen->extrabasedir)) ? $gen->extrabasedir : '';
 		$this->__var_dirprotect = $this->getList("dirprotect");
 
 		if (!$this->isDeleted()) {
@@ -505,9 +529,19 @@ class Web extends Lxdb
 
 	static function getIndexOrderDefault()
 	{
+	/*
 		return array('index.php', 'index.html', 'index.shtml', 'index.htm', 
 			'index.pl', 'index.py', 'index.cgi', 'index.rb', 
 			'default.htm', 'Default.aspx', 'Default.asp');
+	*/
+	/*
+		return array('index.php', 'index.shtml', 'index.pl', 'index.py', 'index.cgi', 'index.rb', 
+			'Default.aspx', 'Default.asp', 'index.html', 'index.htm', 'default.htm', 'welcome.html');	
+	*/
+		$c = file_get_contents(getLinkCustomfile("../etc/list", "index.lst"));
+		$a = str_replace(" ", "", str_replace("\n", "", $c));
+
+		return explode(",", $a);
 	}
 	
 	function getQuotaNeedVar()
@@ -557,12 +591,14 @@ class Web extends Lxdb
 
 	function getFfileFromVirtualList($name)
 	{
+		global $sgbl;
+
 		$name = coreFfile::getRealpath($name);
 		$htroot = $this->getFullDocRoot();
-		$confroot = "__path_httpd_root/$this->nname/";
+		$confroot = "{$sgbl->__path_httpd_root}/{$this->nname}/";
 
 		if ($name === '__lx_error_log') {
-			$root = "$confroot/stats/";
+			$root = "{$confroot}/stats/";
 			$name = "{$this->nname}-error_log";
 			$readonly = 'on';
 			$showheader = false;
@@ -652,10 +688,10 @@ class Web extends Lxdb
 
 		return;
 
-	//	$path[] = "__path_customer_root/$customer_name/$domainname";
-		$path[] = "__path_customer_root/$customer_name/__processed_stats/$domainname";
-		$path[] = "__path_program_home/domain/$domainname/__backup/";
-	//	$path[] = "__path_httpd_root/$domainname";
+	//	$path[] = "{$sgbl->__path_customer_root}/{$customer_name}/{$domainname}";
+		$path[] = "{$sgbl->__path_customer_root}/{$customer_name}/__processed_stats/{$domainname}";
+		$path[] = "{$sgbl->__path_program_home}/domain/{$domainname}/__backup/";
+	//	$path[] = "{$sgbl->__path_httpd_root}/{$domainname}";
 
 		$t = 0;
 		foreach ($path as $p) {
@@ -693,6 +729,11 @@ class Web extends Lxdb
 		if ((int)$c === 1) {
 			exec("'rm' -rf {$this->getFullDocRoot()}");
 		}
+
+		exec("'rm' -f /home/kloxo/httpd/default/{$this->nname}");
+
+		// MR -- del rainloop webmail ini for this domain
+		exec("sh /script/del-rainloop-domains --domain={$this->nname}");
 	}
 
 	// MR -- web__xxxlib call this function but no exists
@@ -701,22 +742,26 @@ class Web extends Lxdb
 
 	function webChangeOwner()
 	{
+		global $sgbl;
+
 		if (!lxfile_exists("{$this->getFullDocRoot()}")) {
-			lxfile_cp_rec("__path_customer_root/$this->__var_oldcustomer_name/$this->docroot", "{$this->getFullDocRoot()}");
+			lxfile_cp_rec("{$sgbl->__path_customer_root}/{$this->__var_oldcustomer_name}/{$this->docroot}", $this->getFullDocRoot());
 		}
 
-		lxfile_unix_chown_rec("{$this->getFullDocRoot()}", "$this->username:$this->username");
+		lxfile_unix_chown_rec($this->getFullDocRoot(), "{$this->username}:{$this->username}");
 
-		lunlink("__path_httpd_root/$this->nname/httpdocs");
+		lunlink("{$sgbl->__path_httpd_root}/{$this->nname}/httpdocs");
 	}
 
 	function getFullDocRoot()
 	{
+		global $sgbl;
+
 		if (!$this->docroot) {
 			$this->docroot = $this->nname;
 		}
 
-		$path = "__path_customer_root/$this->customer_name/$this->docroot";
+		$path = "{$sgbl->__path_customer_root}/{$this->customer_name}/{$this->docroot}";
 		$path = expand_real_root($path);
 
 		return $path;
@@ -724,6 +769,8 @@ class Web extends Lxdb
 
 	function getParentFullDocRoot()
 	{
+		global $sgbl;
+
 		if (!$this->docroot) {
 			$parent = $this->nname;
 		} else {
@@ -734,7 +781,7 @@ class Web extends Lxdb
 			}
 		}
 
-		$path = "__path_customer_root/$this->customer_name/$parent";
+		$path = "{$sgbl->__path_customer_root}/{$this->customer_name}/{$parent}";
 		$path = expand_real_root($path);
 
 		return $path;
@@ -742,7 +789,9 @@ class Web extends Lxdb
 
 	function getCustomerRoot()
 	{
-		$path = "__path_customer_root/$this->customer_name";
+		global $sgbl;
+		
+		$path = "{$sgbl->__path_customer_root}/{$this->customer_name}";
 		$path = expand_real_root($path);
 
 		return $path;
@@ -766,10 +815,10 @@ class Web extends Lxdb
 
 	function do_backup()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl;
 
 		$name = $this->nname;
-		$fullpath = "$sgbl->__path_customer_root/{$this->customer_name}/$name/";
+		$fullpath = "{$sgbl->__path_customer_root}/{$this->customer_name}/{$name}/";
 		lxfile_mkdir($fullpath);
 		$list = lscandir_without_dot_or_underscore($fullpath);
 
@@ -778,10 +827,10 @@ class Web extends Lxdb
 
 	function do_restore($docd)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl;
 
 		$name = $this->nname;
-		$fullpath = "$sgbl->__path_customer_root/{$this->customer_name}/$name/";
+		$fullpath = "{$sgbl->__path_customer_root}/{$this->customer_name}/{$name}/";
 		lxfile_mkdir($fullpath);
 
 	//	lxshell_unzip_with_throw($fullpath, $docd);
@@ -805,12 +854,16 @@ class Web extends Lxdb
 
 	function createPhpInfo()
 	{
+		global $sgbl;
+	
 		$domname = $this->nname;
 
-		if (!lxfile_exists("__path_customer_root/{$this->username}/kloxoscript")) {
-			lxfile_mkdir("__path_customer_root/{$this->username}/kloxoscript/");
-			lxfile_cp("../file/script/phpinfo.php", "__path_customer_root/{$this->username}/kloxoscript/phpinfo.php");
-			lxfile_unix_chown_rec("__path_customer_root/$this->username/kloxoscript", "{$this->username}:{$this->username}");
+		$path = "{$sgbl->__path_customer_root}/{$this->username}/kloxoscript";
+
+		if (!lxfile_exists($path)) {
+			lxfile_mkdir($path);
+			lxfile_cp("../file/script/phpinfo.php", "{$path}/phpinfo.php");
+			lxfile_unix_chown_rec($path, "{$this->username}:{$this->username}");
 		}
 	}
 
@@ -888,32 +941,37 @@ class Web extends Lxdb
 		//	lxfile_symlink("{$web_home}/{$this->nname}/httpdocs", "{$web_home}/{$this->nname}/{$this->nname}");
 		}
 
-		$this->createstatsConf($this->nname, $this->stats_username, $this->stats_password);
+		self::createstatsConf($this->nname, $this->stats_username, $this->stats_password);
 
 		// MR -- must be running here!
-	//	$this->getAndUnzipSkeleton($this->__var_skelmachine, $this->__var_skelfile, "$user_home/");
-		$this->getAndUnzipSkeleton("$user_home/", $this->__var_skelfile, $this->__var_skelmachine);
+	//	$this->getAndUnzipSkeleton($this->__var_skelmachine, $this->__var_skelfile, "{$user_home}/");
+		$this->getAndUnzipSkeleton("{$user_home}/", $this->__var_skelfile, $this->__var_skelmachine);
 
 		if (file_exists("/etc/php-fpm/{$this->customer_name}.conf")) {
-			exec("sh /script/fixphp --domain={$domname} --nolog");
+			exec("sh /script/fixphp --domain={$domname}");
 		} else {
-			exec("sh /script/fixphp --client={$this->customer_name} --nolog");
+			exec("sh /script/fixphp --client={$this->customer_name}");
 		}
+
+		// MR -- add rainloop webmail ini for this domain
+		exec("sh /script/add-rainloop-domains --domain={$domname}");
 	}
 
 	static function createstatsConf($domname, $stats_name, $stats_password)
 	{
-		$inp = "__path_program_root/file/stats/webalizer.model.conf";
-		$outp = "__path_real_etc_root/webalizer/webalizer.$domname.conf";
-		self::docreatestatsConf($inp, $outp, $domname, $stats_name, $stats_password);
-		lxfile_mkdir("/var/lib/webalizer/$domname");
-		lxfile_mkdir("__path_httpd_root/$domname/webstats/webalizer/");
+		global $sgbl;
 
-		$inp = "__path_program_root/file/stats/awstats.model.conf";
-		$outp = "__path_real_etc_root/awstats/awstats.$domname.conf";
+		$inp = getLinkCustomfile("{$sgbl->__path_program_root}/file/stats", "webalizer.model.conf");
+		$outp = "{$sgbl->__path_real_etc_root}/webalizer/webalizer.{$domname}.conf";
 		self::docreatestatsConf($inp, $outp, $domname, $stats_name, $stats_password);
-	//	lxfile_cp("__path_real_etc_root/awstats/awstats.$domname.conf", "__path_real_etc_root/awstats/awstats.www.$domname.conf");
-		lxfile_mkdir("/home/kloxo/httpd/awstats/dirdata/$domname");
+		lxfile_mkdir("/var/lib/webalizer/{$domname}");
+		lxfile_mkdir("{$sgbl->__path_httpd_root}/{$domname}/webstats/webalizer/");
+
+		$inp = getLinkCustomfile("{$sgbl->__path_program_root}/file/stats", "awstats.model.conf");
+		$outp = "{$sgbl->__path_real_etc_root}/awstats/awstats.{$domname}.conf";
+		self::docreatestatsConf($inp, $outp, $domname, $stats_name, $stats_password);
+	//	lxfile_cp("{$sgbl->__path_real_etc_root}/awstats/awstats.{$domname}.conf", "{$sgbl->__path_real_etc_root}/awstats/awstats.www.{$domname}.conf");
+		lxfile_mkdir("/home/kloxo/httpd/awstats/dirdata/{$domname}");
 	}
 
 	static function docreatestatsConf($inp, $outp, $domain, $stats_name, $stats_password)
@@ -1004,24 +1062,48 @@ class Web extends Lxdb
 	//	$alist['property'][] = "goback=1&o=mmail&a=list&c=mailaccount";
 	//	$alist['property'][] = 'goback=1&a=show&sa=config';
 
-		if ($ghtml->frm_subaction === 'stats_protect') {
-			$alist['property'][] = "a=updateform&sa=stats_protect";
-		} elseif ($ghtml->frm_subaction === 'statsconfig') {
-			$alist['property'][] = "a=updateform&sa=statsconfig";
-		} elseif ($ghtml->frm_subaction === 'run_stats') {
-			$alist['property'][] = "a=updateform&sa=run_stats";
-		} elseif ($ghtml->frm_subaction === 'hotlink_protection') {
-			$alist['property'][] = "a=updateform&sa=hotlink_protection";
-		} elseif ($ghtml->frm_subaction === 'blockip') {
-			$alist['property'][] = "a=updateform&sa=blockip";
-		} elseif ($ghtml->frm_subaction === 'docroot') {
-			$alist['property'][] = "a=updateform&sa=docroot";
-		} elseif ($ghtml->frm_subaction === 'configure_misc') {
-			$alist['property'][] = "a=updateform&sa=configure_misc";
-		} elseif ($ghtml->frm_subaction === 'dirindex') {
-			$alist['property'][] = "a=updateform&sa=dirindex";
-		} elseif ($ghtml->frm_subaction === 'custom_error') {
-			$alist['property'][] = "a=updateform&sa=custom_error";
+		switch ($ghtml->frm_subaction) {
+			case 'stats_protect':
+				$alist['property'][] = "a=updateform&sa=stats_protect";
+				break;
+			case 'statsconfig':
+				$alist['property'][] = "a=updateform&sa=statsconfig";
+				break;
+			case 'run_stats':
+				$alist['property'][] = "a=updateform&sa=run_stats";
+				break;
+			case 'hotlink_protection':
+				$alist['property'][] = "a=updateform&sa=hotlink_protection";
+				break;
+			case 'blockip':
+				$alist['property'][] = "a=updateform&sa=blockip";
+				break;
+		/*
+			// MR -- merge to 'web_basics'
+			case 'docroot':
+				$alist['property'][] = "a=updateform&sa=docroot";
+				break;
+			case 'configure_misc':
+				$alist['property'][] = "a=updateform&sa=configure_misc";
+				break;
+			case 'dirindex':
+				$alist['property'][] = "a=updateform&sa=dirindex";
+				break;
+		*/
+		/*
+			case 'custom_error':
+				$alist['property'][] = "a=updateform&sa=custom_error";
+				break;
+			case 'webselector':
+				$alist['property'][] = "a=updateform&sa=webselector";
+				break;
+		*/
+			case 'webfeatures':
+				$alist['property'][] = "a=updateform&sa=webfeatures";
+				break;
+			case 'webbasics':
+				$alist['property'][] = "a=updateform&sa=webbasics";
+				break;
 		}
 
 		return $alist;
@@ -1029,10 +1111,8 @@ class Web extends Lxdb
 
 	static function removeOtherDriver()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-
 		// MR -- and then make a simple
-		removeOtherDrivers($class = 'web', $nolog = true);
+	//	removeOtherDrivers($class = 'web', $nolog = true);
 	}
 
 	static function switchProgramPre($old, $new)
@@ -1046,7 +1126,8 @@ class Web extends Lxdb
 
 	static function switchProgramPost($old, $new)
 	{
-		lxshell_return("lxphp.exe", "/usr/local/lxlabs/kloxo/bin/fix/fixweb.php", "--nolog");
+	//	lxshell_return("lxphp.exe", "../bin/fix/fixweb.php");
+		createRestartFile("restart-web");
 	}
 
 	function createShowAlist(&$alist, $subaction = null)
@@ -1081,12 +1162,18 @@ class Web extends Lxdb
 
 		$alist[] = "a=updateform&sa=permalink";
 
-	//	$alist[] = "a=show&k[class]=allinstallapp&k[nname]=installapp";
+	//	$alist[] = "a=show&k[class]=all_easyinstaller&k[nname]=easyinstaller";
 
 	/*
 		$alist['action'][] = "a=update&sa=backup";
 		$alist['action'][] = "a=updateform&sa=restore";
 	*/
+
+		$alist[] = "a=updateform&sa=webbasics";
+
+	//	$alist[] = "a=updateform&sa=webselector";
+		$alist[] = "a=updateform&sa=webfeatures";
+
 		return $alist;
 	}
 
@@ -1195,7 +1282,8 @@ class Web extends Lxdb
 
 	function updateDirindex($param)
 	{
-		$param['indexfile_list'] = lxclass::fixListVariable($param['indexfile_list']);
+	//	$param['indexfile_list'] = lxclass::fixListVariable($param['indexfile_list']);
+		$param['indexfile_list'] = lxclass::fixListVariable(explode(" ", $param['indexfile_list']));
 
 		return $param;
 	}
@@ -1225,6 +1313,62 @@ class Web extends Lxdb
 		return $param;
 	}
 
+	function updateWebbasics($param)
+	{
+		// MR -- dirindex
+		$param['indexfile_list'] = lxclass::fixListVariable(explode(" ", $param['indexfile_list']));
+
+		// MR -- docroot
+		$param['docroot'] = trim($param['docroot']);
+		validate_docroot($param['docroot']);
+		$this->docroot = $param['docroot'];
+
+		// MR -- configure_misc
+		$this->force_www_redirect = $param['force_www_redirect'];
+		$this->force_https_redirect = $param['force_https_redirect'];
+	/*
+		$this->webmisc_b->execcgi = $param['webmisc_b-execcgi'];
+		$this->webmisc_b->disable_openbasedir = $param['webmisc_b-disable_openbasedir'];
+	*/
+	
+		return $param;
+	}
+
+//	function updateWebselector($param)
+	function updateWebfeatures($param)
+	{
+		global $gbl, $sgbl, $login, $ghtml;
+
+		$this->web_selected = $param['web_selected'];
+		$this->php_selected = $param['php_selected'];
+
+		if ($param['time_out'] === '0') { $param['time_out'] = self::geTimeoutDefault(); }
+		$this->time_out = $param['time_out'];
+
+		if ($param['microcache_time'] === '0') { $param['microcache_time'] = self::getMicrocacheTimeDefault(); }
+		$this->microcache_time = $param['microcache_time'];
+		$this->microcache_insert_into = $param['microcache_insert_into'];
+
+		$this->general_header = $param['general_header'];
+		$this->https_header = $param['https_header'];
+
+		if ($param['static_files_expire'] === '0') { $param['static_files_expire'] = self::getStaticFilesExpireDefault(); }
+		$this->static_files_expire = $param['static_files_expire'];
+
+		$this->disable_pagespeed = $param['disable_pagespeed'];
+
+		return $param;
+	}
+
+	function postUpdate()
+	{
+		// We need to write because reads everything from the database.
+		$this->write();
+
+		exec("sh /script/fixweb --domain={$this->nname}");
+		createRestartFile('restart-web');
+	}
+
 	function updateform($subaction, $param)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
@@ -1239,7 +1383,7 @@ class Web extends Lxdb
 				return $vlist;
 
 			case "sesubmit":
-				include "sesubmit/engines.php";
+				include "./sesubmit/engines.php";
 				$selist = array_keys($enginelist);
 				$selist = implode("\n", $selist);
 				$selist = "\n$selist";
@@ -1251,7 +1395,8 @@ class Web extends Lxdb
 				return $vlist;
 
 			case "docroot":
-				$vlist['docroot'] = null;
+			//	$vlist['docroot'] = null;
+				$vlist['docroot'] = array('m', array('pretext' => "/home/{$this->getParentO()->getParentO()->nname}/"));;
 
 				return $vlist;
 
@@ -1312,13 +1457,7 @@ class Web extends Lxdb
 
 			case "configure_misc":
 				$vlist['force_www_redirect'] = null;
-
-				if ($driverapp === 'apache') {
-					$vlist['webmisc_b-execcgi'] = null;
-					if ($login->isAdmin()) {
-						$vlist['webmisc_b-disable_openbasedir'] = null;
-					}
-				}
+				$vlist['force_https_redirect'] = null;
 
 				$vlist['__v_updateall_button'] = array();
 
@@ -1328,14 +1467,18 @@ class Web extends Lxdb
 				$vlist['webmisc_b-dirindex'] = null;
 
 				if (!$this->indexfile_list) {
-					//$this->indexfile_list = get_web_index_list();
+				//	$this->indexfile_list = get_web_index_list();
 				}
 
-				$ol = self::getIndexOrderDefault();
-				$dirin = $login->getObject('genlist')->dirindexlist_a;
-				$list = get_namelist_from_objectlist($dirin);
-				$index = lx_array_merge(array($list, $ol));
-				$vlist['indexfile_list'] = array('U', $index);
+				if (isset($this->indexfile_list)) {
+					$index = $this->indexfile_list;
+				} else {
+					$index = self::getIndexOrderDefault();
+				}
+
+			//	$vlist['indexfile_list'] = array('U', $index);
+				$vlist['indexfile_list'] = array('t', implode(" ", $index));
+
 				$vlist['__v_updateall_button'] = array();
 
 				return $vlist;
@@ -1346,14 +1489,19 @@ class Web extends Lxdb
 				return $vlist;
 
 			case "custom_error":
-				if ($driverapp !== 'lighttpd') {
+			//	if ($driverapp !== 'lighttpd') {
 					$vlist['customerror_b_s_url_400'] = array("L", "/");
 					$vlist['customerror_b_s_url_401'] = array("L", "/");
 					$vlist['customerror_b_s_url_403'] = array("L", "/");
+					$vlist['customerror_b_s_url_404'] = array("L", "/");
 					$vlist['customerror_b_s_url_500'] = array("L", "/");
-				}
+					$vlist['customerror_b_s_url_501'] = array("L", "/");
+					$vlist['customerror_b_s_url_502'] = array("L", "/");
+					$vlist['customerror_b_s_url_503'] = array("L", "/");
+					$vlist['customerror_b_s_url_504'] = array("L", "/");
+			//	}
 
-				$vlist['customerror_b_s_url_404'] = array("L", "/");
+			//	$vlist['customerror_b_s_url_404'] = array("L", "/");
 				$vlist['__v_updateall_button'] = array();
 
 				return $vlist;
@@ -1383,10 +1531,132 @@ class Web extends Lxdb
 				$vlist['ipaddress'] = array('s', $iplist);
 
 				return $vlist;
+
+			case "webbasics":
+				// MR -- docroot
+			//	$vlist['docroot'] = null;
+				$vlist['docroot'] = array('m', array('pretext' => "/home/{$this->getParentO()->getParentO()->nname}/"));;
+
+				// MR -- dirindex
+				$vlist['webmisc_b-dirindex'] = null;
+
+				if (!$this->indexfile_list) {
+				//	$this->indexfile_list = get_web_index_list();
+				}
+
+				if (isset($this->indexfile_list)) {
+					$index = $this->indexfile_list;
+				} else {
+					$index = self::getIndexOrderDefault();
+				}
+
+			//	$vlist['indexfile_list'] = array('U', $index);
+				$vlist['indexfile_list'] = array('t', implode(" ", $index));
+
+				// MR -- configure_misc
+				$vlist['force_www_redirect'] = null;
+				$vlist['force_https_redirect'] = null;
+
+				$vlist['__v_updateall_button'] = array();
+
+				return $vlist;
+
+		//	case "webselector":
+			case "webfeatures":
+				$phptype = db_get_value('serverweb', "pserver-{$this->syncserver}", 'php_type');
+
+				if (strpos($driverapp, 'proxy') !== false) {
+					$a = array('front-end', 'back-end');
+
+					$vlist['web_selected'] = array("s", $a);
+					$this->setDefaultValue('web_selected', $a[1]);
+				} else {
+					$s = ($this->web_selected) ? $this->web_selected : 'back-end';
+
+					$x['web_selected'] = "--None-- (use '{$driverapp}' but default as '{$s}' in proxy)";
+					$this->convertToUnmodifiable($x);
+					$vlist['web_selected'] = $x['web_selected'];
+				}
+
+				$l = self::getPhpSelectedList();
+
+				if (($driverapp === 'apache') || ((strpos($driverapp, 'proxy') !== false) && ($this->web_selected === 'back-end'))) {
+					if ((strpos($phptype, 'php-fpm') !== false) || (strpos($phptype, 'proxy_fcgi') !== false)) {
+						if (count($l) === 1) {
+							$y['php_selected'] = $l[0];
+							$this->convertToUnmodifiable($y);
+							$vlist['php_selected'] = $y['php_selected'];
+						} else {
+							$vlist['php_selected'] = array("s", $l);
+							$this->setDefaultValue('php_selected', $l[0]);
+						}
+					} else {
+						$y['php_selected'] = $l[0];
+						$this->convertToUnmodifiable($y);
+						$vlist['php_selected'] = $y['php_selected'];
+					}
+				} else {
+					if (count($l) === 1) {
+						$y['php_selected'] = $l[0];
+						$this->convertToUnmodifiable($y);
+						$vlist['php_selected'] = $y['php_selected'];
+					} else {
+						$vlist['php_selected'] = array("s", $l);
+						$this->setDefaultValue('php_selected', $l[0]);
+					}
+				}
+
+				$vlist['general_header'] = null;
+				$this->setDefaultValue('general_header', self::getGeneralHeaderDefault());
+				$vlist['https_header'] = null;
+				$this->setDefaultValue('https_header', self::getHttpsHeaderDefault());
+
+				$vlist['static_files_expire'] = null;
+				$this->setDefaultValue('static_files_expire', self::getStaticFilesExpireDefault());
+
+				$vlist['time_out'] = null;
+				$this->setDefaultValue('time_out', '300');
+
+				$vlist['microcache_time'] = null;
+				$this->setDefaultValue('microcache_time', self::getMicrocacheTimeDefault());
+//				$vlist['microcache_insert_into'] = null;
+				$vlist['microcache_insert_into'] = array('m', array('pretext' => "{$this->getFullDocRoot()}"));;
+				$this->setDefaultValue('microcache_insert_into', self::getMicrocacheInsertIntoDefault());
+
+				$vlist['disable_pagespeed'] = null;
+				$this->setDefaultValue('disable_pagespeed', 'off');
+
+				$vlist['__v_updateall_button'] = array();
+
+				return $vlist;
 		}
 
 		// MR -- this is for what?
 	//	return parent::updateform($subaction, $param);
+	}
+
+	static function getPhpSelectedList()
+	{
+		$t = "--PHP Used--";
+
+		$g = glob("../etc/flag/use_php*m.flg");
+
+		if (!empty($g)) {
+			$f = str_replace('.flg', '', str_replace('use_', '', basename($g[0])));
+			$u = $t . " (use '{$f}')";
+		} else {
+			$v = getPhpVersion();
+			$u = $t . " (use 'PHP Branch' version '{$v}')";
+		}
+
+		if (file_exists('../etc/flag/enablemultiplephp.flg')) {
+			$p = getMultiplePhpList();
+			$l = array_merge(array($t), $p);
+		} else {
+			$l = array($u);
+		}
+
+		return $l;
 	}
 
 	static function getSelectList($parent, $var)
@@ -1411,7 +1681,7 @@ class Web extends Lxdb
 		$dir = dirname($filename);
 		$owner = "{$this->username}:apache";
 
-		$password = crypt($this->stats_password);
+		$password = crypt($this->stats_password, '$1$'.randomString(8).'$');
 		$content = "{$this->stats_username}:$password\n";
 
 		lxuser_mkdir($owner, $dir);
@@ -1433,37 +1703,47 @@ class Web extends Lxdb
 //	function getAndUnzipSkeleton($ip, $filepass, $dir)
 	function getAndUnzipSkeleton($dir, $filepass = null, $ip = null)
 	{
+		global $sgbl;
+
 		$oldir = getcwd();
 		// File may be a variable path.
 		//	dprintr($filepass);
 
-		if ($filepass !== null) {
-			$file = $filepass['file'];
-		} else {
-			$file = "skeleton.zip";
+		if (file_exists("{$dir}/skeleton.zip")) {
+			lxfile_rm("{$dir}/skeleton.zip");
+		}
 
-			if (file_exists("/home/{$this->username}/skeleton.zip")) {
-				lxfile_cp("/home/{$this->username}/skeleton.zip", "{$dir}/{$file}");
+		if (!file_exists("{$dir}/index.html")) {
+			if ($filepass !== null) {
+				$file = $filepass['file'];
 			} else {
-				lxfile_cp("__path_program_root/file/skeleton.zip", "{$dir}/{$file}");
+				$file = "skeleton.zip";
+
+				if (file_exists("/home/{$this->username}/skeleton.zip")) {
+					lxfile_cp("/home/{$this->username}/skeleton.zip", "{$dir}/{$file}");
+				} else {
+					lxfile_cp("{$sgbl->__path_program_root}/file/skeleton.zip", "{$dir}/{$file}");
+				}
 			}
-		}
 
-		if ($ip !== null) {
-			// The thing is this needs to be executed even on secondary master and then the primary master would be down.
-			// So if we cannot connect back, we just continue. Skeleton is not an important thing.
-			try {
-				getFromFileserv($ip, $filepass, "$dir/$file");
-			} catch (exception $e) {
-				return;
+			if ($ip !== null) {
+				// The thing is this needs to be executed even on secondary master and then the primary master would be down.
+				// So if we cannot connect back, we just continue. Skeleton is not an important thing.
+				try {
+					getFromFileserv($ip, $filepass, "{$dir}/{$file}");
+				} catch (exception $e) {
+					return;
+				}
 			}
+
+			lxfile_generic_chown("{$dir}/{$file}", $this->username);
+
+			lxshell_unzip($this->username, $dir, "{$dir}/{$file}");
+
+			lunlink("{$dir}/{$file}");
+
+			$this->replaceVariables("$dir/index.html");
 		}
-
-		lxfile_generic_chown("$dir/$file", $this->username);
-		lxshell_unzip($this->username, $dir, "$dir/$file");
-		lunlink("$dir/$file");
-
-		$this->replaceVariables("$dir/index.html");
 
 		// --- also copy /home/kloxo/httpd/user-logo.png to each domain path
 		if (lxfile_exists("../file/user-logo.png")) {
@@ -1489,6 +1769,39 @@ class Web extends Lxdb
 		}
 
 		return null;
+	}
+
+	static function getTimeoutDefault()
+	{
+		return '300';
+	}
+
+	static function getMicrocacheTimeDefault()
+	{
+		return '5';
+	}
+
+	static function getMicrocacheInsertIntoDefault()
+	{
+		return '/index.php';
+	}
+
+	static function getGeneralHeaderDefault()
+	{
+		return 'X-Content-Type-Options "nosniff"
+X-XSS-Protection "1;mode=block"
+X-Frame-Options "SAMEORIGIN"
+Access-Control-Allow-Origin "*"';
+	}
+
+	static function getHttpsHeaderDefault()
+	{
+		return 'Strict-Transport-Security "max-age=2592000; preload"';
+	}
+
+	static function getStaticFilesExpireDefault()
+	{
+		return '7';
 	}
 }
 

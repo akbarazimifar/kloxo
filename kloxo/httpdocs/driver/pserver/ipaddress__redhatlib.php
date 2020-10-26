@@ -6,6 +6,8 @@ class Ipaddress__Redhat extends LxDriverclass
 	{
 		global $gbl, $sgbl, $login;
 
+		if ($this->main->devname === 'NAT') { return; }
+
 		$this->checkForEthBase();
 
 		if ($sgbl->dbg > 1 && $this->main->devname === 'eth0') {
@@ -105,10 +107,8 @@ class Ipaddress__Redhat extends LxDriverclass
 	//	createRestartFile($this->main->__var_dnsdriver);
 		createRestartFile("restart-dns");
 	
-		$result = self::getCurrentIps();
-
 		// MR -- not needed because Kloxo-MR use *:port instead existing ip for webconfig
-	//	exec("sh /script/fixweb --target=defaults --nolog");
+	//	exec("sh /script/fixweb --target=defaults");
 	}
 
 	function dbactionUpdate($subaction)
@@ -178,7 +178,7 @@ class Ipaddress__Redhat extends LxDriverclass
 	//	web__apache::createWebDefaultConfig($result);
 
 		// MR -- not needed because Kloxo-MR use *:port instead existing ip for webconfig
-	//	exec("sh /script/fixweb --target=defaults --nolog");
+	//	exec("sh /script/fixweb --target=defaults");
 
 		$res = ipaddress::fixstatus($result);
 

@@ -35,9 +35,9 @@ class SpecialPlay_b extends Lxaclass
 	static $__desc_close_add_form = array("f", "", "keep_the_add_forms_closed_by_default");
 	static $__desc_disableipcheck = array("f", "", "disable_ip_check");
 	static $__desc_disable_ajax = array("f", "", "disable_dialog_boxes");
-	static $__desc_enable_ajax = array("f", "", "enable_ajax_(Needs_high_bandwidth)");
+	static $__desc_enable_ajax = array("f", "", "enable_ajax");
 	static $__desc_cpanel_skin = array("f", "", "simple_skin");
-	static $__desc_simple_skin = array("f", "", "simple_skin_(Recommended_for_end_user)");
+	static $__desc_simple_skin = array("f", "", "simple_skin_recommended_for_end_user");
 	static $__desc_show_thin_header = array("f", "", "show_thin_header");
 	static $__desc_resource_bottom = array("fe", "", "show_resource_at_bottom");
 	static $__desc_resource_bottom_v_off = array("fe", "", "show_resource_at_bottom");
@@ -56,7 +56,7 @@ class SpecialPlay_b extends Lxaclass
 	static $__desc_customermode_flag = array("f", "", "log_into_domain_owner_mode");
 	static $__desc_show_help = array("f", "", "show_xp_like_left_panel");
 	static $__desc_show_help_v_on = array("", "", "");
-	static $__desc_ssession_timeout = array("", "", "session_timeout_(in_secs)");
+	static $__desc_ssession_timeout = array("", "", "session_timeout");
 	static $__desc_show_add_buttons = array("f", "", "show_add_buttons_in_main_page");
 	static $__desc_lpanel_scrollbar = array("f", "", "enable_scroll_bar_in_tree_menu");
 	static $__desc_lpanel_group_resource = array("f", "", "group_resources_in_tree_menu");
@@ -102,9 +102,9 @@ class sp_basespecialplay extends LxspecialClass
 	static $__desc = array("", "", "display");
 	static $__desc_nname = array("", "", "account");
 
-//	static $__desc_logo_image_f  = array("F","",  "upload_logo_image_(gif)");
-//	static $__desc_logo_image_loading_f  = array("F","",  "upload_logo_image_shown_while_loading_(gif)");
-	static $__desc_logo_image_f = array("F", "", "upload_logo_image_(png)");
+//	static $__desc_logo_image_f  = array("F","",  "upload_logo_image_gif");
+//	static $__desc_logo_image_loading_f  = array("F","",  "upload_logo_image_shown_while_loading_gif");
+	static $__desc_logo_image_f = array("F", "", "upload_logo_image_png");
 
 	static $__desc_specialplay_b = array("", "", "skin");
 	static $__acdesc_update_login_options = array("v", "", "login_options");
@@ -255,11 +255,11 @@ class sp_basespecialplay extends LxspecialClass
 			lxfile_mv($_FILES['logo_image_f']['tmp_name'], $fullpath_logo_image);
 		}
 
-		lxfile_cp($fullpath_logo_image, "/usr/local/lxlabs/kloxo/file/user-logo.png");
+		lxfile_cp($fullpath_logo_image, "../file/user-logo.png");
 		// must chown to lxlabs for successful display on 'Upload Logo'
 		lxfile_unix_chown($fullpath_logo_image, "lxlabs");
 		lxfile_unix_chmod($fullpath_logo_image, "0644");
-		lxfile_unix_chmod("/usr/local/lxlabs/kloxo/file/user-logo.png", "0644");
+		lxfile_unix_chmod("../file/user-logo.png", "0644");
 
 		$tsp = $parent->getObject("sp_childspecialplay");
 		$tsp->specialplay_b->logo_image = $param['specialplay_b-logo_image'];
@@ -267,7 +267,7 @@ class sp_basespecialplay extends LxspecialClass
 		$tsp->setUpdateSubaction('upload_logo');
 		$this->setUpdateSubaction('upload_logo');
 
-		exec("sh /script/fix-userlogo --nolog");
+		exec("sh /script/fix-userlogo");
 
 		return $param;
 	}

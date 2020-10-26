@@ -8,65 +8,7 @@ class web__ extends lxDriverClass
 
 	static function uninstallMeTrue($drivertype = null)
 	{
-		if ($drivertype === 'none') { return; }
-
-		$list = getWebDriverList($drivertype);
-
-		$l = $list[0];
-
-		$a = ($l === 'apache') ? 'httpd' : $l;
-
-		lxshell_return("service", $a, "stop");
-
-	//	$blist = getRpmBranchList($l);
-	//	if (!$blist) { $blist = array($l); }
-
-		$blist = array();
-
-		// MR -- for fixed an issue version conflict!
-		// no action for hiawatha because used by Kloxo too
-		if ($a === 'httpd') {
-			if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/use_apache24.flg")) {
-				$blist[] = "{$a}24u";
-				$blist[] = "{$a}24u-tools";
-				$blist[] = "{$a}24u-filesystem";
-				$blist[] = "mod24u_ssl";
-				$blist[] = "mod24u_session";
-				$blist[] = "mod24u_suphp";
-				$blist[] = "mod24u_ruid2";
-				$blist[] = "mod24u_fcgid";
-			} else {
-				$blist[] = "{$a}";
-				$blist[] = "{$a}-tools";
-				$blist[] = "mod_ssl";
-				$blist[] = "mod_rpaf";
-				$blist[] = "mod_ruid2";
-				$blist[] = "mod_suphp";
-				$blist[] = "mod_fastcgi";
-				$blist[] = "mod_fcgid";
-				$blist[] = "mod_define";
-				$blist[] = "mod_perl";
-			}
-		} elseif ($a === 'lighttpd') {
-			$blist[] = "{$a}";
-			$blist[] = "{$a}-fastcgi";
-		} elseif ($a === 'nginx') {
-			$blist[] = "{$a}";
-		} elseif ($a === 'hiawatha') {
-			// no action because also using by panel
-		}
-
-		$p = implode(" ", $blist);
-
-		if ($a !== 'hiawatha') {
-			exec("yum remove {$p} -y");
-		}
-
-		lxshell_return("chkconfig", $a, "off");
-
-		if (file_exists("/etc/init.d/{$a}")) {
-			lunlink("/etc/init.d/{$a}");
-		}
+		setAllInactivateWebServer();
 	}
 
 	static function installMeTrue($drivertype = null)
@@ -75,93 +17,29 @@ class web__ extends lxDriverClass
 
 		$list = getWebDriverList($drivertype);
 
-		$isproxyorapache = isWebProxyOrApache($drivertype);
+		foreach ($list as $k => $v) {
+			if ($v === 'none') { continue; }
 
-		if (!$isproxyorapache) {
-			self::uninstallMeTrue('apache');
+			$a = ($v === 'apache') ? 'httpd' : $v;
+
+			self::setBaseWebConfig($v);
+
+			exec("chkconfig {$a} on >/dev/null 2>&1");
 		}
-
-		foreach ($list as &$l) {
-			$a = ($l === 'apache') ? 'httpd' : $l;
-
-			$blist = array();
-
-			if ($a === 'httpd') {
-				if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/use_apache24.flg")) {
-					$blist[] = "{$a}24u";
-					$blist[] = "{$a}24u-tools";
-					$blist[] = "{$a}24u-filesystem";
-					$blist[] = "mod24u_ssl";
-					$blist[] = "mod24u_session";
-					$blist[] = "mod24u_suphp";
-					$blist[] = "mod24u_ruid2";
-					$blist[] = "mod24u_fcgid";
-				} else {
-					$blist[] = "{$a}";
-					$blist[] = "{$a}-tools";
-					$blist[] = "mod_ssl";
-					$blist[] = "mod_rpaf";
-					$blist[] = "mod_ruid2";
-					$blist[] = "mod_suphp";
-					$blist[] = "mod_fastcgi";
-					$blist[] = "mod_fcgid";
-					$blist[] = "mod_define";
-					$blist[] = "mod_perl";
-					$blist[] = "perl-Taint-Runtime";
-				}
-
-			} elseif ($a === 'lighttpd') {
-				$blist[] = $a;
-				$blist[] = "{$a}-fastcgi";
-			} elseif ($a === 'nginx') {
-				$blist[] = $a;
-				$blist[] = "GeoIP";
-			} elseif ($a === 'hiawatha') {
-				// no action
-			}
-
-			$p = implode(" ", $blist);
-
-			exec("yum install {$p} -y");
-
-			self::setWebserverInstall($a);
-			self::setBaseWebConfig($a);
-
-			lxshell_return("chkconfig", $a, "on");
-
-			setCopyWebConfFiles($l);
-		}
-
+	
 		self::setInstallPhpfpm();
 
-		exec("sh /script/fixweb --target=defaults");
+		@exec("sh /script/fixweb --target=defaults");
+
+		createRestartFile("restart-web");
 	}
 
-	static function setBaseWebConfig($drivertype = null)
+	static function setBaseWebConfig($webtype)
 	{
-		setCopyWebConfFiles($drivertype);
-	}
-
-	static function setWebserverInstall($webserver)
-	{
-		// MR -- overwrite init
-
-		$altname = ($webserver === 'httpd') ? 'apache' : $webserver;
-
-		lxfile_cp(getLinkCustomfile("/opt/configs/{$altname}/etc/init.d", "{$webserver}.init"),
-			"/etc/rc.d/init.d/{$webserver}");
-	
-		if ($webserver === 'httpd') {
-			exec("httpd -V|grep 'version'|grep '/2.4'", $out, $ret);
-
-			if ($ret === 0) {
-				exec("echo 'pidfile=\${PIDFILE-/var/run/httpd/httpd.pid}' > /etc/sysconfig/httpd24");
-			} else {
-				exec("rm -f /etc/sysconfig/httpd24");
-			}
+		// MR -- only need here for apache because switch between apache 2.2 and 2.4
+		if ($webtype === 'apache') {
+			setCopyWebConfFiles($webtype);
 		}
-
-		exec("chmod 755 /etc/rc.d/init.d/{$webserver}");
 	}
 
 	static function setUnnstallPhpfpm()
@@ -172,15 +50,11 @@ class web__ extends lxDriverClass
 
 	static function setInstallPhpfpm()
 	{
-		exec("'cp' -rf /usr/local/lxlabs/kloxo/file/php-fpm /opt/configs");
-
-		$phpbranch = getRpmBranchInstalled('php');
-
-		$ret = isRpmInstalled("{$phpbranch}-fpm");
-
-		if (!$ret) {
-			lxshell_return("yum", "-y", "install", "{$phpbranch}-fpm");
+		if (!file_exists("/opt/configs/php-fpm")) {
+			exec("mkdir -p /opt/configs/php-fpm");
 		}
+
+		exec("'cp' -rf ../file/php-fpm/* /opt/configs/php-fpm");
 
 		if (version_compare(getPhpVersion(), "5.3.2", ">")) {
 			lxfile_cp(getLinkCustomfile("/opt/configs/php-fpm/etc", "php53-fpm.conf"), "/etc/php-fpm.conf");
@@ -204,7 +78,8 @@ class web__ extends lxDriverClass
 			}
 		}
 
-		lxshell_return("chkconfig", "php-fpm", "on");
+	//	lxshell_return("chkconfig", "php-fpm", "on");
+		exec("chkconfig php-fpm on >/dev/null 2>&1");
 	}
 
 	function createConfFile()
@@ -229,11 +104,26 @@ class web__ extends lxDriverClass
 		$input['dirprotect'] = $this->getDirprotect();
 		$input['dirindex'] = $this->getDirIndex();
 		$input['certnamelist'] = ($this->getSslCertNameList()) ?
-		$this->getSslCertNameList() : $this->getSslCertNameList('*');
+			$this->getSslCertNameList() : $this->getSslCertNameList('*');
 
 		$input['stats'] = $this->getStats();
 		$input['wwwredirect'] = $this->getWwwRedirect();
+		$input['httpsredirect'] = $this->getHttpsRedirect();
 		$input['domainredirect'] = $this->getRedirectDomains();
+
+		$input['webselected'] = $this->getWebSelected();
+		$input['phpselected'] = $this->getPhpSelected();
+		$input['timeout'] = $this->getWebTimeout();
+
+		$input['microcache_time'] = $this->getMicrocacheTime();
+		$input['microcache_insert_into'] = $this->getMicrocacheInsertInto();
+
+		$input['general_header'] = $this->getGeneralHeader();
+		$input['https_header'] = $this->getHttpsHeader();
+		$input['static_files_expire'] = $this->getStaticFilesExpire();
+
+		$input['disable_pagespeed'] = $this->getDisablePagespeed();
+		$input['pagespeed_ready'] = $this->getPagespeedReady();
 
 		$input['apacheextratext'] = $this->getApacheExtraText();
 		$input['lighttpdextratext'] = $this->getLighttpdExtraText();
@@ -245,7 +135,6 @@ class web__ extends lxDriverClass
 
 		$input['webmailremote'] = $this->getWebmailInfo('remote');
 		$input['webmailapp'] = $this->getWebmailInfo('app');
-	//	$input['webmailappdefault'] = self::getWebmailAppDefault();
 
 		$input['rootpath'] = $this->main->getFullDocRoot();
 
@@ -260,7 +149,6 @@ class web__ extends lxDriverClass
 
 		$input['phptype'] = self::getPhptype();
 
-	//	$input['webcache'] = rl_exec_get('localhost', $this->main->__syncserver, 'slave_get_driver', array('webcache'));
 		$input['webcache'] = $gbl->getSyncClass('localhost', $this->main->__syncserver, 'webcache');
 
 		$input['enablecgi'] = $this->getEnableCGI();
@@ -271,12 +159,18 @@ class web__ extends lxDriverClass
 		$input['kloxoportnonssl'] = get_kloxo_port('nonssl');
 		$input['kloxoportssl'] = get_kloxo_port('ssl');
 
-		$input['driverlist'] = getAllWebDriverList();
+		$input['driverlist'] = getAllRealWebDriverList();
 		$input['driver'] = getWebDriverList();
 
 		self::setCreateConfFile($input);
 
 		$this->setLogfile();
+
+		$st = "/home/kloxo/httpd/default/{$input['domainname']}";
+
+		if (!file_exists($st)) {
+			lxfile_symlink($input['rootpath'], $st);
+		}
 	}
 
 // MR -- (1) related to create conf file
@@ -295,7 +189,6 @@ class web__ extends lxDriverClass
 
 		$input['phptype'] = self::getPhptype();
 
-	//	$input['webcache'] = rl_exec_get('localhost', $this->main->__syncserver, 'slave_get_driver', array('webcache'));
 		$input['webcache'] = $gbl->getSyncClass('localhost', $this->main->__syncserver, 'webcache');
 
 		$input['stats'] = $this->getStats();
@@ -310,9 +203,10 @@ class web__ extends lxDriverClass
 	{
 		global $login;
 
-		$webmailapp = $login->getObject('general')->generalmisc_b->webmail_system_default;
+		$webmailapp = (isset($login->getObject('general')->generalmisc_b->webmail_system_default)) ?
+			$login->getObject('general')->generalmisc_b->webmail_system_default : null;
 
-		if (($webmailapp === '--chooser--') || (!isset($webmailapp))) {
+		if (($webmailapp === '--chooser--') || (!$webmailapp)) {
 			$ret = '';
 		} else {
 			$ret = $webmailapp;
@@ -402,8 +296,6 @@ class web__ extends lxDriverClass
 				lxfile_mv("/etc/php-fpm.d/www.conf", "/etc/php-fpm.d/www.nonconf");
 			}
 		}
-
-	//	createRestartFile('php-fpm');
 	}
 
 
@@ -434,7 +326,7 @@ class web__ extends lxDriverClass
 
 	function getUserList()
 	{
-		$clist = rl_exec_get('localhost', 'localhost', 'getAllClientList', array($this->main->syncserver));
+		$clist = rl_exec_get('localhost', 'localhost', 'getAllClientList', array($this->main->__syncserver));
 
 		$users = array();
 
@@ -459,8 +351,8 @@ class web__ extends lxDriverClass
 
 		$string = "syncserver = '{$this->main->__syncserver}'";
 		$mmaildb = new Sqlite(null, 'mmail');
-		$mlist = $mmaildb->getRowsWhere($string, array('nname', 'parent_clname', 'webmailprog', 'webmail_url', 'remotelocalflag'));
 	//	$mlist = $this->main->__var_mmaillist;
+		$mlist = $mmaildb->getRowsWhere($string, array('nname', 'parent_clname', 'webmailprog', 'webmail_url', 'remotelocalflag'));
 
 		// --- for the first time domain create
 		$list = array('nname' => $domainname, 'parent_clname' => 'domain-'.$domainname,
@@ -511,23 +403,17 @@ class web__ extends lxDriverClass
 				$conftype = 'domains';
 				$conftpl = 'domains';
 				$conffile = $input['domainname'] . '.conf';
-				// MR -- change process to create client (user-level php.ini)
-			//	self::setHttpdFcgid($input);
 			}
 		}
 
 		$input['reverseproxy'] = isWebProxy();
 
-	//	$list = getWebDriverList();
-		$list = getAllWebDriverList();
+		$list = getAllRealWebDriverList();
 
 		$input['webdriverlist'] = $list;
 
 		foreach ($list as &$l) {
 			$tplsource = getLinkCustomfile("/opt/configs/{$l}/tpl", "{$conftpl}.conf.tpl");
-
-			// MR -- to make sure no 'old' config -
-		//	lxshell_return("'rm'", "-rf", "/opt/configs/{$l}/conf/{$conftpl}/*.conf");
 
 			if (($l === 'hiawatha') && ($conftype === 'domains')) {
 				$types = array('domains' => false, 'proxies' => true);
@@ -582,6 +468,7 @@ class web__ extends lxDriverClass
 			}
 		}
 	}
+
 	function setRemoveAllDomainConfigs()
 	{
 		$list = getAllWebDriverList();
@@ -594,9 +481,10 @@ class web__ extends lxDriverClass
 			exec("'rm' -rf /opt/configs/{$l}/conf/proxies/*.conf");
 		}
 	}
+
 	function AddExtraBaseDir()
 	{
-		$extrabasedir = $this->main->__var_extrabasedir;
+		$extrabasedir = ($this->main->__var_extrabasedir) ? $this->main->__var_extrabasedir : '';
 
 		return trim($extrabasedir);
 	}
@@ -781,6 +669,8 @@ class web__ extends lxDriverClass
 		$dirprotect = (isset($this->main->__var_dirprotect)) ?
 			$this->main->__var_dirprotect : null;
 
+		$input = array();
+
 		if ($dirprotect) {
 			$input = array();
 
@@ -792,11 +682,9 @@ class web__ extends lxDriverClass
 				$input[] = array('authname' => $prot->authname,
 					'path' => $prot->path, 'file' => $prot->getFileName());
 			}
-
-			return $input;
-		} else {
-			return null;
 		}
+
+		return $input;
 	}
 
 	function getDirIndex()
@@ -828,7 +716,7 @@ class web__ extends lxDriverClass
 		if ($list) {
 			$string = $list;
 		} else {
-			$string = null;
+			$string = array();
 		}
 
 		return $string;
@@ -857,6 +745,8 @@ class web__ extends lxDriverClass
 	{
 		$serveralias = (isset($this->main->server_alias_a)) ?	$this->main->server_alias_a : null;
 
+		$list = array();
+
 		if ($serveralias) {
 			$list = array();
 
@@ -865,8 +755,6 @@ class web__ extends lxDriverClass
 					$list[] = $val->nname . '.' . $this->getDomainname();
 				}
 			}
-		} else {
-			$list = null;
 		}
 
 		return $list;
@@ -876,6 +764,8 @@ class web__ extends lxDriverClass
 	{
 		$addonlist = (isset($this->main->__var_addonlist)) ?
 			$this->main->__var_addonlist : null;
+
+		$list = array();
 
 		if ($addonlist) {
 			$list = array();
@@ -887,8 +777,6 @@ class web__ extends lxDriverClass
 
 				$list[] = array('parkdomain' => $val->nname, 'mailflag' => $val->mail_flag);
 			}
-		} else {
-			$list = null;
 		}
 
 		return $list;
@@ -897,6 +785,8 @@ class web__ extends lxDriverClass
 	function getRedirectDomains()
 	{
 		$addonlist = (isset($this->main->__var_addonlist)) ? $this->main->__var_addonlist : null;
+
+		$list = array();
 
 		if ($addonlist) {
 			$list = array();
@@ -909,8 +799,6 @@ class web__ extends lxDriverClass
 				$list[] = array('redirdomain' => $val->nname, 'redirpath' => $val->destinationdir,
 					'mailflag' => $val->mail_flag);
 			}
-		} else {
-			$list = null;
 		}
 
 		return $list;
@@ -920,11 +808,13 @@ class web__ extends lxDriverClass
 	{
 		$prog = ($this->main->__var_statsprog) ? $this->main->__var_statsprog : 'awstats';
 
+		// MR -- back to original code but add random password in domainlib.php (add new website)
+	/*
 		// MR -- by default stats dir always protected
 		if (!$this->main->stats_password) {
 			$this->main->stats_password = randomString(8);
 		}
-
+	*/
 		$prot = ($this->main->stats_password) ? $this->main->stats_password : null;
 
 		web::createstatsConf($this->getDomainname(), $this->main->stats_username, $this->main->stats_password);
@@ -935,6 +825,132 @@ class web__ extends lxDriverClass
 	function getWwwRedirect()
 	{
 		if ($this->main->isOn('force_www_redirect')) {
+			$ret = true;
+		} else {
+			$ret = false;
+		}
+
+		return $ret;
+	}
+
+	function getHttpsRedirect()
+	{
+		if ($this->main->isOn('force_https_redirect')) {
+			$ret = true;
+		} else {
+			$ret = false;
+		}
+
+		return $ret;
+	}
+
+	function getWebSelected()
+	{
+		if (!isset($this->main->web_selected) || (!$this->main->web_selected)) {
+			$ret = 'back-end';
+		} else {
+			$ret = $this->main->web_selected;
+		}
+
+		return $ret;
+	}
+
+	function getPhpSelected()
+	{
+		if ((!isset($this->main->php_selected)) || (!$this->main->php_selected) || (strtolower($this->main->php_selected) === '--default--')) {
+			$ret = 'php';
+		} else {
+			$ret = $this->main->php_selected;
+		}
+	
+		// MR -- convert
+		if (strpos(strtolower($ret), 'php used') !== false) {
+			$ret = 'php';
+		}
+
+		return $ret;
+	}
+
+	function getWebTimeout()
+	{
+		if ((!isset($this->main->time_out)) || (!$this->main->time_out) || (strtolower($this->main->time_out) === '300')) {
+			$ret = '300';
+		} else {
+			$ret = $this->main->time_out;
+		}
+
+		return $ret;
+	}
+
+	function getMicrocacheTime()
+	{
+		if ((!isset($this->main->microcache_time)) || (!$this->main->microcache_time) || (strtolower($this->main->microcache_time) === '5')) {
+			$ret = $this->main->getMicrocacheTimeDefault();
+		} else {
+			$ret = $this->main->microcache_time;
+		}
+
+		return $ret;
+	}
+
+	function getMicrocacheInsertInto()
+	{
+		if ((!isset($this->main->microcache_insert_into)) || (!$this->main->microcache_insert_into) || (strtolower($this->main->microcache_insert_into) === '/index.php')) {
+			$ret = $this->main->getMicrocacheInsertIntoDefault();
+		} else {
+			$ret = $this->main->microcache_insert_into;
+		}
+
+		return $ret;
+	}
+
+	function getGeneralHeader()
+	{
+		if ((!isset($this->main->general_header)) || (!$this->main->general_header)) {
+			$ret = $this->main->getGeneralHeaderDefault();
+		} else {
+			$ret = $this->main->general_header;
+		}
+
+		return $ret;
+	}
+
+	function getHttpsHeader()
+	{
+		if ((!isset($this->main->https_header)) || (!$this->main->https_header)) {
+			$ret = $this->main->getHttpsHeaderDefault();
+		} else {
+			$ret = $this->main->https_header;
+		}
+
+		return $ret;
+	}
+
+	function getStaticFilesExpire()
+	{
+		if ((!isset($this->main->static_files_expire)) || (!$this->main->static_files_expire)) {
+			$ret = $this->main->getStaticFilesExpireDefault();
+		} else {
+			$ret = $this->main->static_files_expire;
+		}
+
+		return $ret;
+	}
+
+	function getDisablePagespeed()
+	{
+		if ($this->main->isOn('disable_pagespeed')) {
+			$ret = true;
+		} else {
+			$ret = false;
+		}
+
+		return $ret;
+	}
+
+	function getPagespeedReady()
+	{
+		if (file_exists("../etc/flag/use_pagespeed.flg")) {
 			$ret = true;
 		} else {
 			$ret = false;
@@ -1040,6 +1056,8 @@ class web__ extends lxDriverClass
 		lxfile_cp(getLinkCustomfile("/opt/configs/nginx/tpl", "cgi-bin.php"), "/home/httpd/cgi-bin.php");
 	}
 
+	// MR -- not need this function because using php-cgi directly
+	// for multiple php, also create php*m-cgi using phpm-installer
 	static function setHttpdFcgid($input)
 	{
 		$tplsource = getLinkCustomfile("/opt/configs/apache/tpl", "php.fcgi.tpl");
@@ -1099,7 +1117,6 @@ class web__ extends lxDriverClass
 		lxfile_unix_chown("/home/httpd/{$domainname}", "{$username}:apache");
 		lxfile_unix_chmod("/home/httpd/{$domainname}", "0775");
 
-		// TODO -- done
 		// MR -- change to user-level php
 		if (!lxfile_exists("/home/kloxo/client/{$username}/php.ini")) {
 			// MR -- issue #650 - lxuser_cp does not work and change to lxfile_cp;
@@ -1232,10 +1249,10 @@ class web__ extends lxDriverClass
 		$uname = $this->getUser();
 
 		$spath="/home/{$uname}/ssl";
-		$dpath="/home/kloxo/client/{$uname}";
+		$dpath="/home/kloxo/ssl";
 
 		if (file_exists($spath)) {
-			exec("mv -f {$spath} {$dpath}");
+			exec("'mv' -f {$spath} {$dpath}");
 		}
 	}
 
@@ -1282,7 +1299,7 @@ class web__ extends lxDriverClass
 		// MR -- no need for it except .htaccess per-domain!
 		$uname = $this->getUser();
 
-		exec("sh /script/fixphp --client={$uname} --nolog");
+		exec("sh /script/fixphp --client={$uname}");
 	}
 
 	function htaccessUpdate()
@@ -1291,7 +1308,7 @@ class web__ extends lxDriverClass
 		$domain = $this->getDomainname();
 	//	$uname = $this->getUser();
 
-		exec("sh /script/fixphp --domain={$domain} --nolog");
+		exec("sh /script/fixphp --domain={$domain}");
 
 	}
 

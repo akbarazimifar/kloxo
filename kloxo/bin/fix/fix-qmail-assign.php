@@ -4,10 +4,14 @@
 
 include_once "lib/html/include.php";
 
+log_cleanup("Fixing Qmail Assign", $nolog = null);
+
 resetQmailAssign();
 
 function resetQmailAssign($nolog = null)
 {
+	$mpath = "/home/lxadmin/mail/domains";
+
 	$pass = slave_get_db_pass();
 
 	$con = new mysqli("localhost", "root", $pass);
@@ -25,7 +29,10 @@ function resetQmailAssign($nolog = null)
 	$n = array();
 
 	while ($row = $result->fetch_array(MYSQLI_ASSOC)) {
-		$n[$row['pw_domain']] = str_replace("/" . $row['pw_name'], '', $row['pw_dir']);
+		// MR -- need this team to fix issue where prefix account as the same as prefix domain
+		//       like your@yourdomain.com (the same 'your')
+		$temp = str_replace($mpath . "/", '', $row['pw_dir']);
+		$n[$row['pw_domain']] = $mpath . "/" . str_replace("/" . $row['pw_name'], '', $temp);
 	}
 
 	$ua = '';
@@ -46,12 +53,12 @@ function resetQmailAssign($nolog = null)
 		$o = fileowner($v);
 		$ua .= "+{$k}-:{$k}:{$o}:{$o}:{$v}:-::\n";
 
-		if (isRpmInstalled('qmail-toaster')) {
+	//	if (isRpmInstalled('qmail-toaster')) {
 			// MR -- also fix /home/lxadmin/mail/bin to /home/vpopmail/bin
 			$d = $v . "/.qmail-default";
 			$x = file_get_contents($d);
 			$x = str_replace("/home/lxadmin/mail/bin", "/home/vpopmail/bin", $x);
-		}
+	//	}
 
 		file_put_contents($d, $x);
 

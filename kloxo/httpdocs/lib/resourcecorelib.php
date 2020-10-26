@@ -4,7 +4,7 @@ abstract class Resourcecore extends Lxclient
 
 /// Domain REsources....
 
-	static $__desc_traffic_last_usage = array("D", "", "Ltraffic:traffic_usage_for_last_month_(MB)");
+	static $__desc_traffic_last_usage = array("D", "", "Ltraffic:traffic_usage_for_last_month");
 //	static $__desc_validity_time	 = array("q", "",  "validity_period");
 	static $__desc_awstats_flag = array("q", "", "enable_statistics");
 
@@ -12,12 +12,11 @@ abstract class Resourcecore extends Lxclient
 	static $__desc_logo_manage_flag = array("q", "", "can_change_logo");
 	static $__desc_document_root_flag = array("q", "", "can_set_document_root");
 	static $__desc_runstats_flag = array("q", "", "can_run_stats_program");
-	static $__desc_traffic_usage = array("q", "", "Traffic:Traffic_(MB/Month)");
-	static $__desc_totaldisk_usage = array("q", "", "TotDisk:total_disk_usage_(MB)");
+	static $__desc_traffic_usage = array("q", "", "Traffic:Traffic");
+	static $__desc_totaldisk_usage = array("q", "", "TotDisk:total_disk_usage");
 	static $__desc_totalinode_usage = array("q", "", "TotInode:total_inode_usage");
-//	static $__desc_disk_usage	 = array("D", "",  "Disk:web_disk_usage_(MB)");
-	static $__desc_maildisk_usage = array("q", "", "MailDisk:mail_disk_usage_(MB)");
-	static $__desc_mailaccount_num = array("q", "", "Mailaccount:mail_account_num");
+	static $__desc_maildisk_usage = array("q", "", "MailDisk:mail_disk_usage");
+	static $__desc_mailaccount_num = array("q", "", "Mailaccount:number_of_mail_account");
 	static $__desc_mailinglist_num = array("q", "", "mailinglist:number_of_mailing_lists");
 	static $__desc_ftpuser_num = array("q", "", "ftpuser:number_of_ftp_users");
 
@@ -32,7 +31,7 @@ abstract class Resourcecore extends Lxclient
 //	static $__desc_mssqldb_num = array("q", "",  "mssqldb:mssql_databases");
 
 //	static $__desc_php_manage_flag =  array("q", "",  "enable_php_management");
-	static $__desc_installapp_flag = array("q", "", "enable_installapp");
+	static $__desc_easyinstaller_flag = array("q", "", "enable_easyinstaller");
 	static $__desc_ssl_flag = array("q", "", "enable_ssl");
 	static $__desc_can_change_limit_flag = array("q", "", "can_change_limit");
 	static $__desc_webhosting_flag = array("q", "", "enable_web_hosting");

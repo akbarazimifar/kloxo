@@ -16,7 +16,7 @@ class sshclient extends lxclass
 
 		$parent = $this->getParentO();
 
-		$v = lfile_get_contents("theme/filecore/sshterm-applet.htm");
+		$v = lfile_get_contents("thirdparty/sshterm-applet/sshterm-applet.htm");
 
 	//	if ($parent->is__table('pserver')) {
 		if ($parent->getClass() === 'pserver') {
@@ -59,7 +59,18 @@ class sshclient extends lxclass
 			$connectimmediately = "true";
 		}
 
-		if (file_exists("thirdparty/jcterm")) {
+		if ($login->nname === 'admin') {
+			$ar['ip_address'] = $gbl->c_session->ip_address;
+			$ar['session'] = $gbl->c_session->tsessionid;
+			lfile_put_serialize("../session/ssh_{$ar['session']}", $ar['ip_address']);
+			$servar = base64_encode(serialize($ar));
+?>
+<div style="text-align:center">
+<IFRAME style="width:800px; height:600px" src="web-console/index.php?session=<?php echo $servar; ?>"></IFRAME>
+</div>
+<?php
+		} else {
+			if (file_exists("thirdparty/jcterm")) {
 ?>
 
 <div style="text-align:center">
@@ -73,7 +84,7 @@ class sshclient extends lxclass
 	</applet>
 </div>
 <?php
-		} else {
+			} else {
 ?>
 
 <div style="text-align:center; width: 640px; height: 480px; margin: 0 auto; border: 0; padding: 0">
@@ -90,6 +101,7 @@ class sshclient extends lxclass
 	</applet>
 </div>
 <?php
+			}
 		}
 	}
 

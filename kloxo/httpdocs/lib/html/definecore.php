@@ -21,7 +21,7 @@ $gl_class_array["utmp"] = "lib/html/utmplib.php";
 $gl_class_array["permission"] = "lib/php/resourcelib.php";
 $gl_class_array["rawlxguardhit"] = "driver/pserver/lxguardhitlib.php";
 $gl_class_array["smessage"] = "lib/ticket/smessagelib.php";
-$gl_class_array["coreffile"] = "lib/php/coreFfilelib.php";
+$gl_class_array["coreffile"] = "lib/php/coreffilelib.php";
 $gl_class_array["clienttemplatebase"] = "lib/client/clienttemplatebaselib.php";
 $gl_class_array["clientcore"] = "lib/client/clientcorelib.php";
 $gl_class_array["clientbase"] = "lib/client/clientbaselib.php";
@@ -123,4 +123,6 @@ $gl_class_array['lxguardwhitelist'] = "driver/pserver/lxguardwhitelistlib.php";
 $gl_class_array['browsebackup'] = "lib/html/browsebackuplib.php";
 
 $gl_class_array['jailed'] = "driver/pserver/jailedlib.php";
+
+$gl_class_array["phpmodule"] = "driver/pserver/phpmodulelib.php";
 

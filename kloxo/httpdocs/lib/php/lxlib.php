@@ -73,7 +73,9 @@ function check_for_debug($file)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 	if (file_exists(getreal($file))) {
-		$sgbl->dbg = file_get_contents(getreal($file));
+		// MR -- fix if file have LF
+		$content = file_get_contents(getreal($file));
+		$sgbl->dbg = $content[0];
 		if ($sgbl->dbg != "1" && $sgbl->dbg != "2" && $sgbl->dbg != "3" && $sgbl->dbg != "4" && $sgbl->dbg != "5") {
 			$sgbl->dbg = -1;
 		}
@@ -1150,53 +1152,65 @@ function dprint_r($var, $type = 0)
 	}
 }
 
-function xprint($var)
+function debug_print($var, $note = null)
 {
 	global $sgbl;
 
-	if ($sgbl->__running_in_cli) {
-	//	print("\n---begin xprint_r---\n");
-		print("\n");
-	} else {
-	//	print("<pre>---begin xprint_r---\n");
-		print("<pre>");
-	}
-
-	if (is_object($var) && method_exists($var, "clearChildrenAndParent")) {
-		$newvar = myclone($var);
-		lxclass::clearChildrenAndParent($newvar);
-		$newvar->driverApp = 'unset for printing';
-		$newvar->__parent_o = 'unset for printing';
-
-		$class = $newvar->get__table();
-		
-		if (csb($class, "sp_")) {
-			$bclass = strfrom($class, "sp_") . "_b";
-			$newvar->$bclass->__parent_o = 'unset for printing';
-		}
-		
-		print_r($newvar);
-	} else {
-		if (is_array($var)) {
-			print_r($var);
+	if ($type <= $sgbl->dbg) {
+		if ($sgbl->__running_in_cli) {
+			print("\n---begin xprint---\n");
+			if ($note) {
+				print("* Note: {$note}");
+			}
+			print("\n");
 		} else {
-			print($var);
+			print("<pre>---begin xprint---\n");
+			if ($note) {
+				print("* Note: {$note}");
+			}
+			print("<pre>");
 		}
-	}
 
-	if ($sgbl->__running_in_cli) {
-	//	print("\n---end xprint_r---\n");
-		print("\n");
-	} else {
-	//	print("\n---end xprint_r---</pre>");
-		print("</pre>");
+	//	if (is_object($var) && method_exists($var, "clearChildrenAndParent")) {
+		if (is_object($var)) {
+			$newvar = myclone($var);
+
+			if (method_exists($var, "clearChildrenAndParent")) {
+				lxclass::clearChildrenAndParent($newvar);
+				$newvar->driverApp = 'unset for printing';
+				$newvar->__parent_o = 'unset for printing';
+
+				$class = $newvar->get__table();
+
+				if (csb($class, "sp_")) {
+					$bclass = strfrom($class, "sp_") . "_b";
+					$newvar->$bclass->__parent_o = 'unset for printing';
+				}
+			}
+
+			print_r($newvar);
+		} else {
+			if (is_array($var)) {
+				print_r($var);
+			} else {
+				print($var);
+			}
+		}
+
+		if ($sgbl->__running_in_cli) {
+			print("\n---end xprint---\n");
+			print("\n");
+		} else {
+			print("\n---end xprint---</pre>");
+			print("</pre>");
+		}
 	}
 }
 
-function get_xprint($var)
+function get_debug_print($var, $note = null)
 {
 	ob_start();
-	eval(xprint($var));
+	eval(debug_print($var));
 	$x = ob_get_contents();
 	ob_end_clean();
 
@@ -1631,6 +1645,22 @@ function get_namelist_from_arraylist($ol, $key = null, $val = null)
 	return $name;
 }
 
+function getNumericValue($var)
+{
+	// MR -- back to calculate
+
+	$list = array("GB" => 1048576, "MB" => 1024, "KB" => 1, "%" => 1);
+
+	foreach ($list as $k => $v) {
+		if (strpos($var, " {$k}") !== false) {
+			$var = (float)$var * $v;
+			return $var;
+		}
+	}
+
+	return $var;
+}
+
 function isQuotaGreaterThanOrEq($used, $priv)
 {
 	if (is_unlimited($priv)) {
@@ -1645,7 +1675,11 @@ function isQuotaGreaterThanOrEq($used, $priv)
 	if (isOn($used)) {
 		return true;
 	}
-	return ($used >= $priv) ? true : false;
+
+	$used = getNumericValue($used);
+	$priv = getNumericValue($priv);
+
+	return ((float)$used >= (float)$priv) ? true : false;
 }
 
 function isQuotaGreaterThan($used, $priv)
@@ -1662,7 +1696,11 @@ function isQuotaGreaterThan($used, $priv)
 	if (isOn($used)) {
 		return true;
 	}
-	return ($used > $priv) ? true : false;
+
+	$used = getNumericValue($used);
+	$priv = getNumericValue($priv);
+
+	return ((float)$used > (float)$priv) ? true : false;
 }
 
 function is_unlimited($val)
@@ -2059,6 +2097,10 @@ function init_language()
 	$g_language_desc->__description = $__description;
 }
 
+/*
+	MR - this function trouble if running on php 7.0+
+	TODO: still using til Kloxo-MR using php70s+
+*/
 function lx_error_handler($errno, $errstr, $file, $line)
 {
 	global $gbl, $sgbl, $login, $ghtml;
@@ -2124,15 +2166,15 @@ function check_password($unenc, $enc)
 
 	return false;
 }
-
+/*
+	MR - this function trouble if running on php 7.0+
+	TODO: still using til Kloxo-MR using php70s+
+*/
 function lx_exception_handler($e)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	print("Notice : The resource you have requested doesn't exist. The server returned the error message: <br> ");
-
-	print(" {$e->getMessage()} $e->variable $e->value ");
-	print("<br>\n\n");
+	print("Error message: {$e->getMessage()} {$e->variable} {$e->value}\n");
 
 	if ($sgbl->dbg <= 0) {
 		return;
@@ -2283,11 +2325,13 @@ function initProgramlib($ctype = null)
 
 	$progname = $sgbl->__var_program_name;
 	lfile_put_contents($sgbl->__var_error_file, "");
+	// MR -- disable because trouble in php7
 	set_exception_handler("lx_exception_handler");
-	//xdebug_disable();
+//	xdebug_disable();
+	// MR -- disable because trouble in php7
 	set_error_handler("lx_error_handler");
 
-	//setcookie("XDEBUG_SESSION", "sess");
+//	setcookie("XDEBUG_SESSION", "sess");
 
 	if ($var >= 2) {
 		dprint("initProgramlib called twice \n <br> ");
@@ -3011,7 +3055,7 @@ function add_superadmin($pass)
 
 	$ddb = new Sqlite(null, "superclient");
 	if (!$ddb->existInTable("nname", 'superclient')) {
-		$res['password'] = crypt($pass);
+		$res['password'] = crypt($pass, '$1$'.randomString(8).'$');
 		$res['cttype'] = 'superadmin';
 		$res['cpstatus'] = 'on';
 		if (if_demo()) {
@@ -3052,9 +3096,10 @@ function init_supernode($pass)
 function init_slave($pass)
 {
 	global $gbl, $sgbl, $login, $ghtml;
+
 	$rm = new Remote();
-	$rm->password = crypt($pass);
-	lfile_put_contents('__path_slave_db', serialize($rm));
+	$rm->password = crypt($pass, '$1$'.randomString(8).'$');
+	lfile_put_contents($sgbl->__path_slave_db, serialize($rm));
 }
 
 function lx_socket_read($socket)
@@ -3221,7 +3266,8 @@ function getDbvariable($listvar, $mainvar)
 	static $var;
 
 	if (!$var) {
-		$var = unserialize(lfile_get_contents("__path_dbschema"));
+	//	$var = unserialize(lfile_get_contents("__path_dbschema"));
+		include_once "../file/sql/db_schema.php";
 	}
 
 	if (isset($var[$listvar][$mainvar])) {
@@ -3305,9 +3351,9 @@ function create_database()
 		$pstring = "-p\"$pass\"";
 	}
 
-	$dbpath = '/usr/local/lxlabs/kloxo/file/sql';
+	$dbpath = '../file/sql';
 
-	system("mysql -f -u root $pstring < {$dbpath}/db-structure-base.sql & >/dev/null 2>&1");
+	exec("mysql -f -u root $pstring < {$dbpath}/db-structure-base.sql &");
 }
 
 function update_database()
@@ -3322,9 +3368,9 @@ function update_database()
 		$pstring = "-p\"$pass\"";
 	}
 
-	$dbpath = '/usr/local/lxlabs/kloxo/file/sql';
+	$dbpath = '../file/sql';
 
-	system("mysql -f -u root $pstring < {$dbpath}/db-structure-update.sql >/dev/null 2>&1");
+	exec("mysql -f -u root $pstring < {$dbpath}/db-structure-update.sql &");
 }
 
 function get_default_fields()

@@ -1,6 +1,8 @@
 #!/bin/sh
 
-if rpm -qa|grep 'mratwork-' >/dev/null 2>&1 ; then
+yum clean all
+
+if [ "$(rpm -qa|grep 'mratwork-')" != "" ] ; then
 	yum update mratwork* -y
 else
 	cd /tmp
@@ -17,10 +19,4 @@ else
 	yum update mratwork-* -y
 fi
 
-identify=$(yum list *yum*|grep '@')
-
-if [ "${identify}" == "" ] ; then
-	sed -i 's:$releasever:5:' /etc/yum.repos.d/mratwork.repo
-else
-	sed -i 's:$releasever:6:' /etc/yum.repos.d/mratwork.repo
-fi
+. /script/fix-urgent

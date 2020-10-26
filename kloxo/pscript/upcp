@@ -1,8 +1,20 @@
 #!/bin/sh
 
-if rpm -qa|grep 'yum-plugin-replace' >/dev/null 2>&1 ; then
-	echo ""
-else
+if [ "$(hostname -f)" == "$(hostname -s)" ] ; then
+	echo "-------------------------------------------------------------------"
+	echo " WARNING:"
+	echo " - Need change hostname with qualify to FQDN"
+	echo "   (use 'server1.domain.com' instead 'server1')"
+	echo " - May trouble for web and mail without FQDN hostname"
+	echo "-------------------------------------------------------------------"
+	echo " - For OpenVZ VPS, change hostname from VPS panel"
+	echo " - For Others, change 'HOSTNAME' in '/etc/sysconfig/network' file"
+	echo " - Reboot after change hostname"
+	echo
+	exit
+fi
+
+if [ "$(rpm -qa yum-plugin-replace)" == "" ] ; then
 	yum -y install yum-plugin-replace
 fi
 
@@ -24,7 +36,7 @@ if [ ! -f /script/programname ] ; then
 	echo 'kloxo' > /script/programname
 fi
 
-if rpm -qa|grep lxphp >/dev/null 2>&1 ; then
+if [ "$(rpm -qa lxphp)" != "" ] ; then
 	rpm -e lxphp --nodeps
 	rpm -e lxlighttpd --nodeps
 	rpm -e lxzend --nodeps
@@ -32,28 +44,28 @@ if rpm -qa|grep lxphp >/dev/null 2>&1 ; then
 	'rm' -rf /usr/local/lxlabs/ext >/dev/null 2>&1
 fi
 
-if rpm -qa|grep php52s >/dev/null 2>&1 ; then
+if [ "$(rpm -qa php52s)" != "" ] ; then
 	yum remove php52s -y
 	sh /script/phpm-installer php53s
 fi
 
-if rpm -qa|grep php53s >/dev/null 2>&1 ; then
+if [ "$(rpm -qa php53s)" != "" ] ; then
 	yum remove php53s* -y
 	rpm -e php53s-fpm --noscript
 
 	sh /script/phpm-installer php53s
 fi
 
-if rpm -qa|grep mysql56u >/dev/null 2>&1 ; then
+if [ "$(rpm -qa mysql56u)" != "" ] ; then
 	echo "Already use mysql56u. No replace"
-elif rpm -qa|grep mysql55 >/dev/null 2>&1 ; then
+elif [ "$(rpm -qa mysql55)" != "" ] ; then
 	echo "Already use mysql55. No replace"
-elif rpm -qa|grep MariaDB-server >/dev/null 2>&1 ; then
+elif [ "$(rpm -qa MariaDB-server)" != "" ] ; then
 	echo "Already use MariaDB. No replace"
 else
-	if rpm -qa|grep mysql >/dev/null 2>&1 ; then
-		echo "Replace mysql to mysql56u"
-		yum replace mysql --replace-with=mysql56u -y
+	if [ "$(rpm -qa mysql)" != "" ] ; then
+		echo "Replace mysql to MariaDB-server"
+		yum replace mysql --replace-with=MariaDB-server -y
 	fi
 fi
 
@@ -66,22 +78,23 @@ fi
 
 if [ "$1" == "--remove-kloxo-databse" ] || [ "$2" == "--remove-kloxo-databse" ] || [ "$3" == "--remove-kloxo-databse" ] \
 		|| [ "$1" == "-r" ] || [ "$2" == "-r" ] || [ "$3" == "-r" ] ; then
-	if [ -f /etc/rc.d/init.d/mysql ] ; then
-		service mysql stop
-		'rm' -rf /var/lib/mysql/kloxo
-		service mysql start
-	else
+	if [ -f /etc/rc.d/init.d/mysqld ] || [ -f /usr/lib/systemd/system/mysqld.service ] ; then
 		service mysqld stop
 		'rm' -rf /var/lib/mysql/kloxo
 		service mysqld start
+	else
+		service mysql stop
+		'rm' -rf /var/lib/mysql/kloxo
+		service mysql start
 	fi
 fi
 
 if [ "$1" == "-y" ] || [ "$1" == "--force" ] || [ "$2" == "-y" ] || \
 		[ "$2" == "--force" ]  || [ "$3" == "-y" ] || [ "$3" == "--force" ] ; then
-	if [ -f /etc/rc.d/init.d/qmail ] ; then
+	if [ -f /etc/rc.d/init.d/qmail ] || [ -f /usr/lib/systemd/system/qmail.service ] ; then
 		service qmail stop
-		'rm' -f /etc/rc.d/init.d/qmail
+		'rm' -f /etc/rc.d/init.d/qmail >/dev/null 2>&1
+		'rm' -f /usr/lib/systemd/system/qmail.service >/dev/null 2>&1
 	fi
 
 	sh ${ppath}/install/setup.sh $*  | tee ${ppath}/install/install.log

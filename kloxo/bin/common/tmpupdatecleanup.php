@@ -16,7 +16,7 @@ function updatecleanup_main()
 
 	if ($opt['type'] === 'master') {
 		initProgram('admin');
-		$flg = "$sgbl->__path_program_start_vps_flag";
+		$flg = $sgbl->__path_program_start_vps_flag;
 
 		if (!lxfile_exists($flg)) {
 			set_login_skin_to_simplicity();
@@ -25,7 +25,7 @@ function updatecleanup_main()
 		$login = new Client(null, null, 'update');
 	}
 
-	log_cleanup("*** Executing Update (cleanup) - BEGIN ***");
+	log_cleanup("*** Execute Update (cleanup) - BEGIN ***");
 
 	if ($opt['type'] === 'master') {
 		$sgbl->slave = false;
@@ -36,7 +36,7 @@ function updatecleanup_main()
 			print(">>> Execute doUpdates() <<<\n");
 			doUpdates();
 			print(">>> Execute driverload.php <<<\n");
-			lxshell_return("$sgbl->__path_php_path", "../bin/common/driverload.php");
+			lxshell_return($sgbl->__path_php_path, "../bin/common/driverload.php");
 		}
 
 		print(">>> Execute update_all_slave() <<<\n");
@@ -53,49 +53,29 @@ function updatecleanup_main()
 	}
 
 	if ($opt['type'] === 'master') {
-		lxfile_touch("$sgbl->__path_program_start_vps_flag");
+		lxfile_touch($sgbl->__path_program_start_vps_flag);
 	}
 
 	// MR -- mysql not start after kloxo slave install
-	log_cleanup("- Preparing MySQL/MariaDB service");
+	log_cleanup("Prepare MySQL/MariaDB service");
 
-	if (file_exists("/etc/rc.d/init.d/mysqld")) {
+	if (isServiceExists('mysqld')) {
 		log_cleanup("- MySQL activated");
 		exec("chkconfig mysql off >/dev/null 2>&1");
-		exec("chkconfig mysqld on");
+		exec("chkconfig mysqld on >/dev/null 2>&1");
 	
-	//	log_cleanup("- MySQL restarted");
-	//	exec("service mysqld restart");
-	} elseif (file_exists("/etc/rc.d/init.d/mysql")) {
+	} else {
 		log_cleanup("- MariaDB activated");
 		exec("chkconfig mysqld off >/dev/null 2>&1");
-		exec("chkconfig mysql on");
-	
-	//	log_cleanup("- MariaDB restarted");
-	//	exec("service mysql restart");
+		exec("chkconfig mysql on >/dev/null 2>&1");
 	}
 
 	log_cleanup("- Updating Main services");
 
-/*	
-	$slist = array(
-		"kloxomr7",
-		"httpd* lighttpd* nginx* hiawatha* openlitespeed* monkey*",
-		"mod_* mysql* mariadb* MariaDB* php*",
-		"bind* djbdns* pdns* nsd* maradns* mydns yadifa*",
-		"varnish* trafficserver* squid*",
-		"pure-ftpd* *-toaster bogofilter",
-		"kloxomr-webmail-*.noarch",
-		"kloxomr-thirdparty-*.noarch",
-		"kloxomr7-thirdparty-*.noarch",
-		"kloxomr-editor-*.noarch"
-	);
-
-	setUpdateServices($slist);
-*/
 	## MR -- change to update all
 
-	log_cleanup('Updating All packages - WAIT to process...');
+	log_cleanup('Update All packages');
+	log_cleanup('- WAIT to process...');
 //	exec("'rm' -f /var/run/yum.pid");
 	lxshell_return("yum", "clean", "expire-cache");
 	$ret = lxshell_return("yum", "update", "-y");
@@ -105,16 +85,6 @@ function updatecleanup_main()
 	} else {
 		log_cleanup("- New version of packages installed");
 	}
-/*
-	// MR -- use this trick for qmail non-daemontools based
-	log_cleanup("- Preparing some services again");
-	
-	log_cleanup("- qmail enabled and restart queue");
-	exec("chkconfig qmail on");
-	createRestartFile("qmail");
-*/
-//	log_cleanup("Fix SSL path for domain");
-//	exec("mv -f /home/*/ssl /home/kloxo/client/*/");
 
 	if (isset($opt['without-services'])) {
 		// no action
@@ -122,8 +92,7 @@ function updatecleanup_main()
 		setInitialServices();
 
 		log_cleanup("Fix services");
-		$fixapps = array("dns", "webcache", "web", "php", "mail-all", "ftp-all");
-		setUpdateConfigWithVersionCheck($fixapps, $opt['type']);
+		setUpdateConfigWithVersionCheck(getListOnList('fix'), $opt['type']);
 	}
 
 	// MR -- installatron need ownership as root:root
@@ -132,10 +101,10 @@ function updatecleanup_main()
 		symlink("/var/installatron/frontend", "/usr/local/lxlabs/kloxo/httpdocs/installatron");
 	}
 
-	log_cleanup("Fixing Hiawatha service");
+	log_cleanup("- Fix Hiawatha service");
 	fix_hiawatha();
 
-	log_cleanup("*** Executing Update (cleanup) - END ***");
+	log_cleanup("*** Execute Update (cleanup) - END ***");
 }
 
 function cp_dbfile()

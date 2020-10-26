@@ -10,6 +10,8 @@ class dns_record_a extends LxDnsClass
 	static $__desc_nname = array("n", "", "dns_record");
 	static $__desc_param = array("n", "", "value");
 	static $__desc_hostname = array("n", "", "hostname", "a=updateform&sa=edit");
+	static $__desc_flag = array("n", "", "flag");
+	static $__desc_tag = array("n", "", "tag");
 	static $__desc_ttype = array("", "", "type");
 	static $__desc_ttype_v_mx = array("", "", "MX");
 	static $__desc_ttype_v_ns = array("", "", "NS");
@@ -19,6 +21,10 @@ class dns_record_a extends LxDnsClass
 	static $__desc_ttype_v_cname = array("", "", "CNAME");
 	static $__desc_ttype_v_fcname = array("", "", "FCNAME");
 	static $__desc_priority = array("", "", "priority");
+	static $__desc_ttype_v_caa = array("", "", "CAA");
+	static $__desc_ttype_v_srv = array("", "", "SRV");
+	static $__desc_weight = array("n", "", "weight");
+	static $__desc_port = array("n", "", "port");
 
 	function isSelect()
 	{
@@ -40,7 +46,11 @@ class dns_record_a extends LxDnsClass
 		if ($this->ttype === 'txt') {
 			$vlist['param'] = array("t", "");
 		} else {
-			$vlist['param'] = null;
+			if (($this->ttype === 'fcname') || ($this->ttype === 'ns') || ($this->ttype === 'mx')) {
+				$vlist['param'] = array('m', array('posttext' => "."));
+			} else {
+				$vlist['param'] = null;
+			}
 		}
 
 		return $vlist;
@@ -93,13 +103,35 @@ class dns_record_a extends LxDnsClass
 				}
 			}
 
-			if (strpos($this->getParentO()->nname, '.dnst') !== false) {
+			if ($this->ttype === 'caa') {
+				return "{$this->flag} {$this->tag} \"{$this->param}\"";
+			}
+
+			if ($this->ttype === 'srv') {
+				return "{$this->weight} {$this->port} \"{$this->param}\"";
+			}
+
+		/*
+		//	if (strpos($this->getParentO()->nname, '.dnst') !== false) {
 				// MR -- for template
 			//	$this->$var = str_replace($this->getParentO()->nname, "__base__", $this->$var);
-			} else {
+		//	} else {
 				// MR -- for dns setting
-				$this->$var = str_replace("__base__", $this->getParentO()->nname, $this->$var);
-			}
+				if ($this->ttype !== 'cn') {
+					$this->$var = str_replace("__base__", $this->getParentO()->nname, $this->$var);
+				} else {
+					if (($this->$var === '__base__') || ($this->$var === $this->getParentO()->nname)) {
+						$this->$var = $this->getParentO()->nname . '.';
+					} else {
+					//	$this->$var .= '.' . $this->getParentO()->nname . '.';
+					}
+				}
+
+				if (($this->ttype === 'fcname') || ($this->ttype === 'ns') || ($this->ttype === 'mx')) {
+					$this->$var .= '.';
+				}
+		//	}
+		*/
 		}
 
 		// MR -- fix appear in 'old' data
@@ -169,8 +201,9 @@ class dns_record_a extends LxDnsClass
 			// Validates both ipv4 and ipv6
 			validate_ipaddress($param['param']);
 
-		//	$param['nname'] = "{$param['ttype']}_{$param['hostname']}_{$param['param']}";
-			$param['nname'] = "{$param['ttype']}_{$param['hostname']}";
+			// MR -- back to use old model (importance for round-robin 'A record'
+			$param['nname'] = "{$param['ttype']}_{$param['hostname']}_{$param['param']}";
+		//	$param['nname'] = "{$param['ttype']}_{$param['hostname']}";
 		} elseif ($param['ttype'] === 'cname') {
 			// Validates hostname subdomain
 			validate_hostname_name($param['hostname']);
@@ -198,6 +231,27 @@ class dns_record_a extends LxDnsClass
 			validate_hostname_name($val);
 
 			$param['nname'] = "{$param['ttype']}_{$val}";
+		} elseif ($param['ttype'] === 'caa') {
+			// Validates hostname subdomain
+
+			$val =  str_replace('.__base__', '', $param['hostname']);
+
+			validate_hostname_name($val);
+
+			validate_domain_name($param['param']);
+
+			$param['nname'] = "{$param['ttype']}_{$param['param']}";
+		} elseif ($param['ttype'] === 'srv') {
+			$val = $param['hostname'];
+
+			// MR -- handle hostname like _domainkey and _dmarc
+			if ((strpos($val, '_', 0) !== false)) {
+				$val = str_replace('_', '', $val);
+			}
+
+			validate_hostname_name($val);
+
+			$param['nname'] = "{$param['ttype']}_{$val}";
 		} else {
 			$param['nname'] = "{$param['ttype']}_{$param['hostname']}";
 		}
@@ -210,19 +264,30 @@ class dns_record_a extends LxDnsClass
 		if ($typetd['val'] === 'ns') {
 			// MR -- add hostname entry to make possible to 'delegate' to other server!
 			$vlist['hostname'] = array('m', array('value'=> '__base__'));
-			$vlist['param'] = null;
+			$vlist['param'] = array('m', array('posttext' => "."));
 		} elseif ($typetd['val'] === 'mx') {
 			$vlist['priority'] = array('s', array('5', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'));
-			$vlist['param'] = null;
+			$vlist['param'] = array('m', array('posttext' => "."));
 		} elseif ($typetd['val'] === 'cname') {
 			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
 			$vlist['param'] = array('m', array('posttext' => ".$parent->nname."));
 		} elseif ($typetd['val'] === 'fcname') {
 			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
-			$vlist['param'] = array('m', array('posttext' => ""));
+			$vlist['param'] = array('m', array('posttext' => "."));
 		} elseif ($typetd['val'] === 'txt') {
 			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
 			$vlist['param'] = array('t', "");
+		} elseif ($typetd['val'] === 'caa') {
+			$vlist['hostname'] = array('m', array('value'=> '__base__'));
+			$vlist['flag'] = array('s', array('0', '1', '128'));
+			$vlist['tag'] = array('s', array('issue', 'issuewild', 'iodef'));
+			$vlist['param'] = array('m', array('value'=> 'letsencrypt.org'));
+		} elseif ($typetd['val'] === 'srv') {
+			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
+			$vlist['priority'] = array('s', array('0', '5', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'));
+			$vlist['weight'] = array('s', array('0', '5', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'));
+			$vlist['port'] = null;
+			$vlist['param'] = null;
 		} else {
 		//	$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
 			$vlist['hostname'] = null;
@@ -256,11 +321,10 @@ class Cn_rec_a extends Lxdnsclass
 {
 }
 
-
 abstract class Dnsbase extends Lxdb
 {
 	// Mysql
-	static $__desc_ttl = array("", "", "ttl_(seconds)");
+	static $__desc_ttl = array("", "", "ttl");
 	static $__desc_syncserver = array("sd", "", "primary_dns");
 	static $__desc_ns_rec_a = array("", "", "ns_record");
 	static $__desc_a_rec_a = array("", "", "a_record");
@@ -281,7 +345,9 @@ abstract class Dnsbase extends Lxdb
 	{
 		global $login;
 
-		$this->ttl = "86000";
+		$this->ttl = "86400"; // in seconds; 1 day
+		// MR -- based on https://www.ietf.org/rfc/rfc1912.txt
+	//	$this->ttl = "1209600"; // in seconds; 2 weeks
 
 		validate_domain_name($nameserver);
 
@@ -309,12 +375,16 @@ abstract class Dnsbase extends Lxdb
 		$this->addRec("cn", "www", "__base__");
 	//	$this->addRec("cn", "ftp", "__base__");
 		$this->addRec("a", "ftp", $webipaddress);
+		$this->addRec("a", "stats", $webipaddress);
 		$this->addRec("cn", "webmail", "mail");
 		$this->addRec("cn", "lists", "mail");
 		$this->addRec("fcname", "smtp", "mail.$this->nname");
 		$this->addRec("fcname", "pop", "mail.$this->nname");
 		$this->addRec("fcname", "imap", "mail.$this->nname");
 		$this->addRec("mx", "10", "mail.$this->nname");
+
+		// MR -- special CN record for letsencrypt wildcards domains ssl
+		$this->addRec("cn", "_acme-challenge", "myalias");
 
 		return;
 	}
@@ -485,6 +555,8 @@ abstract class Dnsbase extends Lxdb
 			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=fcname';
 			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=mx';
 			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=txt';
+			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=caa';
+			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=srv';
 			$alist['property'][] = 'a=updateform&sa=parameter';
 
 		//	$alist[] = 'a=updateform&sa=parameter';

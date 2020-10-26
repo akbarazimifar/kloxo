@@ -10,7 +10,7 @@ class ftpuser extends Lxclient
 	static $__desc_status = array("e", "", "s:status", URL_TOGGLE_STATUS);
 	static $__desc_status_v_on = array("", "", "on");
 	static $__desc_status_v_off = array("", "", "off");
-	static $__desc_ftp_disk_usage = array("", "", "disk_quota_(MB) (blank_for_unlimited)");
+	static $__desc_ftp_disk_usage = array("", "", "disk_quota");
 
 	static $__acdesc_update_edit = array('', '', 'edit', 'edit');
 
@@ -68,7 +68,11 @@ class ftpuser extends Lxclient
 		$web = $parent;
 		$param['realpass'] = $param['password'];
 
-		$param['password'] = crypt($param['password']);
+		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
+
+		if ($param['directory'] === '') {
+			$param['directory'] = '/';
+		}
 
 		return $param;
 	}
@@ -78,7 +82,7 @@ class ftpuser extends Lxclient
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$nlist['status'] = '3%';
-		$nlist['parent_clname'] = '5%';
+	//	$nlist['parent_clname'] = '5%';
 		$nlist['syncserver'] = '10%';
 		$nlist['nname'] = '25%';
 		$nlist['directory'] = '50%';
@@ -143,8 +147,12 @@ class ftpuser extends Lxclient
 
 	function updateform($subaction, $param)
 	{
+	//	global $gbl, $sgbl, $login, $ghtml;
+
 		if ($subaction === 'edit') {
 			$vlist['directory'] = null;
+			// MR -- not used because trouble for non-static function
+		//	$vlist['directory'] = array('L', array('pretext' => "/home/{$this->nname}/"));
 			$vlist['ftp_disk_usage'] = null;
 
 			return $vlist;
@@ -176,7 +184,7 @@ class all_ftpuser extends ftpuser
 {
 	static $__desc = array("", "", "all_ftpuser");
 	static $__desc_parent_name_f = array("n", "", "owner");
-	static $__desc_parent_clname = array("n", "", "owner");
+//	static $__desc_parent_clname = array("n", "", "owner");
 
 	function isSelect()
 	{
@@ -197,7 +205,7 @@ class all_ftpuser extends ftpuser
 	static function createListSlist($parent)
 	{
 		$nlist['nname'] = null;
-		$nlist['parent_clname'] = null;
+	//	$nlist['parent_clname'] = null;
 
 		return $nlist;
 	}

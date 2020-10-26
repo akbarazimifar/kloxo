@@ -12,8 +12,11 @@ class lxbackup extends Lxdb
 	static $__desc_upload_type = array("", "", "upload_type");
 	static $__desc_backupschedule_flag = array("q", "", "allow_schedule_backup");
 	static $__desc_backupschedule_type = array("", "", "schedule_backup");
+	static $__desc_backupschedule_time = array("", "", "schedule_backup_time");
 	static $__desc_backup_from_file_f = array("n", "", "backup_from_file");
+	static $__desc_restore_from_file_f = array("n", "", "restore_from_file");
 	static $__desc_backup_ftp_file_f = array("n", "", "filename_on_the_ftp_server");
+	static $__desc_restore_ftp_file_f = array("n", "", "filename_on_the_ftp_server");
 	static $__desc_backup_to_file_f = array("n", "", "backup_file_initial_string");
 	static $__desc_send_email = array("f", "", "send_email_after_backup");
 	static $__desc_backupstage = array("", "", "last_backup_status");
@@ -24,7 +27,7 @@ class lxbackup extends Lxdb
 	static $__desc_temp_f = array("", "", "");
 	static $__desc_upload_to_ftp = array("f", "", "upload_files_to_remote_server_");
 	static $__desc_no_local_copy_flag = array("f", "", "dont_keep_a_local_copy");
-	static $__desc_backupextra_stopvpsflag = array('f', "", "stop_vps_while_backup_snapshot_(recommended)", "");
+	static $__desc_backupextra_stopvpsflag = array('f', "", "stop_vps_while_backup_snapshot", "");
 
 	static $__acdesc_update_backup = array("", "", "backup_now");
 	static $__acdesc_update_restore = array("", "", "restore");
@@ -35,21 +38,14 @@ class lxbackup extends Lxdb
 
 	function getFfileFromVirtualList($name)
 	{
+		global $sgbl;
+
 		$parent = $this->getParentO();
-
-	/*
-		$ffile= new Ffile($this->__masterserver, $this->syncserver,
-			"__path_httpd_root/{$parent->nname}/{$parent->nname}",
-			$name, $parent->getObject('web')->username);
-	*/
-
-		global $gbl, $sgbl, $login, $ghtml;
 
 		$name = coreFfile::getRealpath($name);
 		$name = "/$name";
-	
-		$root = "__path_program_home/{$parent->get__table()}/{$parent->nname}/__backup/";
-		$fullpath = "$root/$name";
+
+		$root = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup/";
 
 		if ($parent->isClient()) {
 			$syncserver = "localhost";
@@ -96,9 +92,20 @@ class lxbackup extends Lxdb
 		return $param;
 	}
 
+	function postUpdate()
+	{
+		// We need to write because the fixphpini reads everything from the database.
+		$this->write();
+
+		if ($this->subaction === 'schedule_conf') {
+			exec("sh /script/fix-cron-backup");
+
+		}
+	}
+
 	static function getMetaData($file)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl, $login;
 
 		$progname = $sgbl->__var_program_name;
 
@@ -127,9 +134,6 @@ class lxbackup extends Lxdb
 
 	function backupcheckForConsistency($tree, $param)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-
-		$progname = $sgbl->__var_program_name;
 
 		$parent = $this->getParentO();
 
@@ -140,13 +144,14 @@ class lxbackup extends Lxdb
 		if ($parent->isClient() || $parent->isLocalhost('syncserver')) {
 			$rem = self::getMetaData($file);
 		} else {
-			$rem = rl_exec_get($parent->__masterserver, $parent->syncserver, array("lxbackup", "getMetaData"), array($file));
+			$rem = rl_exec_get($parent->__masterserver, $parent->syncserver, 
+				array("lxbackup", "getMetaData"), array($file));
 		}
 
 		print_time("check_cons");
 		$trulist = null;
 
-		if (isset($param['_accountselect'])) {
+		if ($param['_accountselect']) {
 			$trulist = $param['_accountselect'];
 		}
 
@@ -172,22 +177,21 @@ class lxbackup extends Lxdb
 		if (isOn($param['upload_to_ftp']) && !isOn($param['dont_verify_ftp_f'])) {
 			$fn = lxftp_connect($param['ftp_server']);
 			$mylogin = ftp_login($fn, $param['rm_username'], $param['rm_password']);
+
 			if (!$mylogin) {
 				$p = error_get_last();
 				throw new lxException($login->getThrow('could_not_connect_to_ftp_server'), '', $p);
 			}
-		}
 
-		ftp_pasv($fn, true);
+			ftp_pasv($fn, true);
+		}
 
 		return $param;
 	}
 
 	function updateform($subaction, $param)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-
-		$progname = $sgbl->__var_program_name;
+		global $gbl, $sgbl, $login;
 
 		$parent = $this->getParentO();
 
@@ -204,18 +208,19 @@ class lxbackup extends Lxdb
 				if (trim($this->ftp_server)) {
 					$vlist['ftp_server'] = array('M', null);
 					$vlist['rm_username'] = array('M', null);
-					$vlist['rm_password'] = array('M', '***');
+				//	$vlist['rm_password'] = array('M', '***');
+					$vlist['rm_password'] = null;
 					$vlist['upload_to_ftp'] = array('M', null);
 				} else {
 					$vlist['upload_to_ftp'] = array('M', "Ftp Server Not Set");
 				}
-
+			/*
 				if (!$parent->checkIfLockedForAction('backup')) {
 					if ($this->backupstage === 'doing') {
 						$this->backupstage = 'program_interrupted';
 					}
 				}
-
+			*/
 				$this->backupstage = fix_nname_to_be_variable($this->backupstage);
 				$vlist['backupstage'] = array('M', null);
 				$vlist['backup_to_file_f'] = null;
@@ -224,7 +229,7 @@ class lxbackup extends Lxdb
 
 				$vlist['__v_button'] = 'Backup Now';
 
-				return $vlist;
+				break;
 
 			case "restore_confirm":
 				$gbl->__var_tmp_disabled_flag = false;
@@ -242,13 +247,13 @@ class lxbackup extends Lxdb
 					$vlist['__v_resourcefunc'] = "getDisplayBackupChildList";
 				}
 
-			//  $vlist['__v_resourcefunc'] = "getDisplayBackupChildList";
+			//	$vlist['__v_resourcefunc'] = "getDisplayBackupChildList";
 
 				$vlist['__v_param'] = $param;
 				$vlist['__v_button'] = 'Restore Now';
 				print_time("restore_process", "Restore Processing Took");
 
-				return $vlist;
+				break;
 
 			case "restore_confirm_confirm":
 				$gbl->__var_tmp_disabled_flag = true;
@@ -272,7 +277,7 @@ class lxbackup extends Lxdb
 				$vlist['__v_button'] = 'Restore Now';
 				print_time("restore_process", "Restore Processing Took");
 
-				return $vlist;
+				break;
 
 			case "schedule_conf":
 				if ($parent->isSimpleBackup()) {
@@ -291,6 +296,20 @@ class lxbackup extends Lxdb
 					$vlist['backupschedule_type'] = array('M', 'Disabled');
 				}
 
+				$time = range(0, 23);
+
+				if ($login->isAdmin()) {
+					$vlist['backupschedule_time'] = array('s', $time);
+				} else {
+					$vlist['backupschedule_time'] = array('M', null);
+				}
+
+				if ($parent->nname === 'admin') {
+					$this->setDefaultValue('backupschedule_time', 6);
+				} else {
+					$this->setDefaultValue('backupschedule_time', 18);
+				}
+
 				$vlist['rm_last_number'] = null;
 				$vlist['__v_updateall_button'] = array();
 
@@ -300,7 +319,8 @@ class lxbackup extends Lxdb
 				$vlist['ftp_server'] = null;
 			//	$vlist['ssh_server'] = null;
 				$vlist['rm_username'] = null;
-				$vlist['rm_password'] = array('m', get_star_password());
+			//	$vlist['rm_password'] = array('m', get_star_password());
+				$vlist['rm_password'] = null;
 				$vlist['rm_directory'] = null;
 				$vlist['upload_to_ftp'] = null;
 				$vlist['upload_type'] = array('M', 'ftp');
@@ -315,23 +335,32 @@ class lxbackup extends Lxdb
 					$vlist['ftp_server'] = array("M", "Ftp Server is Not Set");
 					break;
 				}
-
-				$vlist['ftp_server'] = array('M', null);
-				$vlist['rm_username'] = array('M', null);
-				$vlist['rm_password'] = array('M', "****");
-				$vlist['backup_ftp_file_f'] = null;
-				$vlist['__v_next'] = 'restore_confirm';
-				$vlist['__v_button'] = 'Continue';
-
-				break;
-
-			case "restore_from_file":
+			/*
 				if (!$parent->checkIfLockedForAction('restore')) {
 					if ($this->restorestage === 'doing') {
 						$this->restorestage = 'program_interrupted';
 					}
 				}
+			*/
+				$vlist['ftp_server'] = array('M', null);
+				$vlist['rm_username'] = array('M', null);
+			//	$vlist['rm_password'] = array('M', "****");
+				$vlist['rm_password'] = null;
+				$vlist['restorestage'] = array('M', null);
+				$vlist['backup_ftp_file_f'] = null;
+				$vlist['__v_next'] = 'restore_confirm';
+				$vlist['__v_button'] = 'Start Restore Process';
 
+				break;
+
+			case "restore_from_file":
+			/*
+				if (!$parent->checkIfLockedForAction('restore')) {
+					if ($this->restorestage === 'doing') {
+						$this->restorestage = 'program_interrupted';
+					}
+				}
+			*/
 				$vlist['restorestage'] = array('M', null);
 				$vlist['backup_from_file_f'] = array('L', "/");
 				$vlist['__v_next'] = 'restore_confirm';
@@ -361,7 +390,7 @@ class lxbackup extends Lxdb
 
 	function createShowAlist(&$alist, $subaction = null)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+	//	global $login;
 
 	//	$alist['__title_main'] = $login->getKeywordUc('actions');
 	//	$alist[] = 'a=updateform&sa=restore_from_file';
@@ -374,6 +403,7 @@ class lxbackup extends Lxdb
 	{
 		$uflist['backup'] = null;
 		$uflist['restore_from_file'] = null;
+		$uflist['restore_from_ftp'] = null;
 
 		return $uflist;
 	}
@@ -387,7 +417,7 @@ class lxbackup extends Lxdb
 
 	function updateBackupRestore($param, $type)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $gbl, $login, $ghtml;
 
 		$parent = $this->getParentO();
 
@@ -424,12 +454,14 @@ class lxbackup extends Lxdb
 			throw new lxException($login->getThrow("backup_has_been_scheduled"));
 		} else {
 			$bpath = "__path_program_home/{$parent->get__table()}/{$parent->nname}/__backup";
-			$fname = $param['backup_from_file_f'];
+			// MR -- if no exists for backup_from_file_f mean exists backup_ftp_file_f
+			$fname = ($param['backup_from_file_f'])
+				? $param['backup_from_file_f'] : '_RESTORE_' . basename($param['backup_ftp_file_f']);
 			$fname = str_replace("/", "", $fname);
 			$fname = str_replace(";", "", $fname);
 			$fname = str_replace(" ", "", $fname);
-			$file = "$bpath/$fname";
-			
+			$file = "{$bpath}/{$fname}";
+
 			rl_exec_get(null, null, array("lxbackup", "execrestorephp"), array($this->getParentClass(), $this->getParentName(), $file, $param));
 
 			$url = $ghtml->getFullUrl('a=show');
@@ -442,12 +474,12 @@ class lxbackup extends Lxdb
 
 	function updateBackup($param)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl, $login;
 
 		$parent = $this->getParentO();
 
 		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
-		$bfile = "$bpath/{$this->createBackupFileName($param['backup_to_file_f'])}.tgz";
+		$bfile = "{$bpath}/{$this->createBackupFileName($param['backup_to_file_f'])}.tgz";
 
 		if (lxfile_exists($bfile)) {
 			throw new lxException($login->getThrow("file_already_exists"), '', $param['backup_to_file_f'] . ".tgz");
@@ -458,44 +490,36 @@ class lxbackup extends Lxdb
 
 	function updateRestore_confirm_confirm($param)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+	//	global $gbl, $sgbl, $login, $ghtml;
 
 		dprintr($param);
 
 		$this->updateBackupRestore($param, "restore");
 
-	//  if (csa($file, "__lx_temperoryftp_file")) { unlink($file); }
+	//	if (csa($file, "__lx_temperoryftp_file")) { unlink($file); }
 	}
 
 	function construct_tarfilename($name)
 	{
-	//  $date = date("Y-m-d-H-i");
-	//  $tim = time();
-
-		$date = '';
-		$tim = '';
-		$hostname = `hostname`;
-		$hostname = trim($hostname);
-		$ret = "backup-$name";
-
-		return $ret;
+		return "backup-$name";
 	}
 
 	static function execrestorephp($class, $name, $file, $param)
 	{
-		global $global_shell_error;
-
+		global $sgbl;
 		$val = $param['_accountselect'];
 		$res = implode($val, ",");
 		$res = str_replace("-", ":", $res);
 	//	$res = str_replace("_s_vv_p_", ":", $res);
 
-		lxshell_background("__path_php_path", "../bin/common/restore.php", "--class=$class",
-			"--name=$name", "--restore", "--accounts=$res", "--priority=low", $file);
+		lxshell_background($sgbl->__path_php_path, "../bin/common/restore.php", "--class={$class}",
+			"--name={$name}", "--restore", "--accounts={$res}", "--priority=low", $file);
 	}
 
 	static function execbackupphp($class, $name, $param)
 	{
+		global $sgbl;
+
 		$string = '';
 
 		foreach ($param as $k => $v) {
@@ -508,29 +532,27 @@ class lxbackup extends Lxdb
 		$fname = str_replace(";", "", $fname);
 		$fname = str_replace("/", "", $fname);
 
-		lxshell_background("__path_php_path", "../bin/common/backup.php", "--class=$class",
-			"--name=$name", "--v-backup_file_name=$fname", $string);
+		lxshell_background($sgbl->__path_php_path, "../bin/common/backup.php", "--class={$class}",
+			"--name={$name}", "--v-backup_file_name={$fname}", $string);
 	}
 
 	function createBackupFileName($name)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-
 		$parent = $this->getParentO();
 
-		$ver = $sgbl->__ver_major_minor;
 		$name = str_replace("/", "", $name);
 		$name = str_replace(";", "", $name);
-		$date = @ date('Y-M-d');
+	//	$date = @ date('Y-M-d');
+		$date = @ date('Y-m-d');
 		$time = time();
-		$bfile = "$name-{$ver}-{$parent->nname}-$date-$time";
+		$bfile = "{$name}-{$parent->nname}-{$date}-{$time}";
 
 		return $bfile;
 	}
 
 	function doUpdateBackup($param)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl;
 
 		$progname = $sgbl->__var_program_name;
 		$cprogname = ucfirst($progname);
@@ -538,29 +560,32 @@ class lxbackup extends Lxdb
 		$parent = $this->getParentO();
 
 		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
-		$bfile = $bpath . "/" . $this->createBackupFileName($param['backup_to_file_f']) . "." . $parent->getZiptype();
+		$bfile = $this->createBackupFileName($param['backup_to_file_f']);
+		$fbfile = "{$bpath}/{$bfile}.{$parent->getZiptype()}";
 
 		if ($parent->isSimpleBackup()) {
-			$parent->doSimpleBackup($bfile, $param);
+			$parent->doSimpleBackup($fbfile, $param);
 		} else {
-			$parent->doCoreBackup($bfile, $param);
+			$parent->doCoreBackup($fbfile, $param);
 		}
 
 		$object = clone($this);
 		lxclass::clearChildrenAndParent($object);
 
-		if ($object->isOn('upload_to_ftp')) {
+	//	if ($object->isOn('upload_to_ftp')) {
+		if ($object->upload_to_ftp === 'on') {
 			try {
 				if ($parent->isClient() || $parent->isLocalhost()) {
-					self::upload_to_server($bfile, basename($bfile), $object);
+					self::upload_to_server($fbfile, basename($fbfile), $object);
 				} else {
-					rl_exec_get(null, $parent->syncserver, array('lxbackup', 'upload_to_server'), array($bfile, basename($bfile), $object));
+					rl_exec_get(null, $parent->syncserver, array('lxbackup', 'upload_to_server'), array($fbfile, basename($fbfile), $object));
 				}
 			} catch (Exception $e) {
-				$text1 = "$cprogname Backup Upload Failed on " . date('Y-M-d') . " at " . date('H') . " Hours";
-				$text2 = "$cprogname Backup upload Failed due to '{$e->getMessage()}'";
+			//	$text1 = "$cprogname Backup Upload Failed on " . date('Y-M-d') . " at " . date('H') . " Hours";
+				$text1 = "$cprogname Backup Upload Failed on " . date('Y-m-d') . " at " . date('H') . " Hours";
+				$text2 = "$cprogname Backup upload Failed for '{$parent->nname}' due to '{$e->getMessage()}'";
 
-				lx_mail(null, $parent->contactemail, $text . "\n");
+				lx_mail(null, $parent->contactemail, $text1, $text2 . "\n");
 				log_log("backup", "* " . $text1 . " - " . $text2);
 			}
 		}
@@ -571,46 +596,45 @@ class lxbackup extends Lxdb
 			rl_exec_get(null, $parent->syncserver, array('lxbackup', 'clear_extra_backups'), array($parent->get__table(), $parent->nname, $object));
 		}
 
-		if ($object->isOn('upload_to_ftp')) {
+	//	if ($object->isOn('upload_to_ftp')) {
+		if ($object->upload_to_ftp === 'on') {
 			$tobackup = $object->ftp_server;
 		} else {
 			$tobackup = 'local backup';
 		}
 
-		$text1 = "$cprogname Backup on " . date('Y-M-d') . " at " . date('H') . " Hours";
+		// MR -- change format. Use '2019-07-20' instead '2019-jul-20'
+	//	$text1 = "$cprogname Backup on " . date('Y-M-d') . " at " . date('H') . " Hours";
+		$text1 = "$cprogname Backup on " . date('Y-m-d') . " at " . date('H') . " Hours";
+
 		$text2 = "$cprogname Backup Succeeded for '{$parent->nname}' to '{$tobackup}'";
 
 		lx_mail(null, $parent->contactemail, $text1, $text2 . "\n");
 		log_log("backup", "* " . $text1 . " - " . $text2);
-
-	//	$gbl->__this_redirect = $ghtml->getFullUrl('a=show') . "&frm_smessage=backup_succeeded";
-	//	$ghtml->print_redirect($gbl->__this_redirect);
 	}
 
 	static function clear_extra_backups($class, $name, $object)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl;
 
-		$progname = $sgbl->__var_program_name;
-		$bpath = "__path_program_home/$class/$name/__backup";
+		$bpath = "{$sgbl->__path_program_home}/{$class}/{$name}/__backup";
 		$list = lscandir_without_dot($bpath);
 		$dellist = self::getDeleteList($object, $list);
 
 		dprint("Delete list\n");
 		dprintr($dellist);
+
 		$num = $object->rm_last_number ? $object->rm_last_number : 5;
 		print("Deleting Old backups.... Will retain $num.\n");
-		$bpath = "__path_program_home/$class/$name/__backup";
 
-		foreach ($dellist as $k => $v) {
-			print("deleting $v\n");
-			lunlink("$bpath/$v");
+		if (!empty($dellist)) {
+			foreach ($dellist as $k => $v) {
+				print("deleting $v\n");
+				lunlink("$bpath/$v");
+			}
 		}
 
 		print("deleting old backups from ftp server\n");
-
-		$fn = null;
-		$mylogin = null;
 
 		if (!$object->ftp_server) {
 			return;
@@ -619,10 +643,15 @@ class lxbackup extends Lxdb
 		$fn = lxftp_connect($object->ftp_server);
 		$mylogin = ftp_login($fn, $object->rm_username, $object->rm_password);
 
+		if (!$mylogin) {
+			$p = error_get_last();
+			throw new lxException($login->getThrow('could_not_connect_to_ftp_server'), '', $p);
+		}
+	/*
 		if (!$fn) {
 			return;
 		}
-
+	*/
 		# Issue 366
 		ftp_pasv($fn, true);
 
@@ -652,16 +681,19 @@ class lxbackup extends Lxdb
 
 	static function getDeleteList($object, $list)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl;
 
 		$progname = $sgbl->__var_program_name;
+	//	$progname = "kloxomr70";
 		dprint("$object->nname\n");
 		$aname = strfrom($object->nname, "-");
 		$aname = "-$aname";
 
 		foreach ($list as $k => &$__l) {
 			$__l = basename($__l);
-			if (csb($__l, "$progname-scheduled") && csa($__l, $aname)) {
+		//	if (csb($__l, "$progname-scheduled") && csa($__l, $aname)) {
+			if (csb($__l, $progname) && csa($__l, "-scheduled-") && csa($__l, $aname)) {
+				// MR -- no action
 			} else {
 				unset($list[$k]);
 			}
@@ -686,6 +718,8 @@ class lxbackup extends Lxdb
 		$total = count($newlist);
 		$i = 0;
 
+		$retlist = array();
+
 		foreach ($newlist as $k => $v) {
 			$i++;
 
@@ -701,22 +735,29 @@ class lxbackup extends Lxdb
 
 	function getFtpOrLocal($param)
 	{
+		global $sgbl;
+
 		$parent = $this->getParentO();
 
-		if (isset($param['backup_ftp_file_f'])) {
+		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
+
+		if ($param['backup_ftp_file_f']) {
+		/*
 			$file = tempnam("/tmp/", "__lx_temperoryftp_file");
 			lunlink($file);
 			$file .= ".zip";
 			$this->download_from_server($param['backup_ftp_file_f'], $file);
 			$ftp = true;
+		*/
+			$file = '_RESTORE_' . basename($param['backup_ftp_file_f']);
+			$file = "{$bpath}/{$file}";
+			$this->download_from_server($param['backup_ftp_file_f'], $file);
 		} else {
-			$bpath = "__path_program_home/{$parent->get__table()}/{$parent->nname}/__backup";
 			$file = $param['backup_from_file_f'];
 			$file = str_replace(";", "", $file);
 			$file = str_replace("/", "", $file);
 			$file = str_replace(" ", "", $file);
-			$file = "$bpath/$file";
-			$ftp = false;
+			$file = "{$bpath}/{$file}";
 		}
 
 		return $file;
@@ -724,7 +765,7 @@ class lxbackup extends Lxdb
 
 	static function createTmpDirIfitDoesntExist($file, $real)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $sgbl, $login;
 
 		$progname = $sgbl->__var_program_name;
 		$vd = tempnam("/tmp", "backup");
@@ -756,7 +797,7 @@ class lxbackup extends Lxdb
 
 	function doUpdateRestore($file, $param)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $gbl, $sgbl;
 
 		$progname = $sgbl->__var_program_name;
 		$cprogname = ucfirst($progname);
@@ -770,7 +811,8 @@ class lxbackup extends Lxdb
 		}
 
 		if (!$gbl->__var_list_flag) {
-			$text1 = "$cprogname Restore on " . date('Y-M-d') . " at " . date('H') . " Hours";
+		//	$text1 = "$cprogname Restore on " . date('Y-M-d') . " at " . date('H') . " Hours";
+			$text1 = "$cprogname Restore on " . date('Y-m-d') . " at " . date('H') . " Hours";
 			$text2 = "$cprogname Restore Succeeded for '{$parent->nname}' on '$parent->syncserver'";
 
 			lx_mail(null, $parent->contactemail, $text1, $text2 . "\n");
@@ -778,14 +820,15 @@ class lxbackup extends Lxdb
 		}
 
 		if ($sgbl->isKloxo()) {
-			lxshell_return("__path_php_path", "../bin/collectquota.php", "--just-db=yes");
+			lxshell_return($sgbl->__path_php_path, "../bin/collectquota.php", "--just-db=yes");
 		}
 	}
 
 	function download_from_server($file, $localfile)
 	{
 		global $login;
-			
+
+
 		$fn = lxftp_connect($this->ftp_server);
 		$mylogin = ftp_login($fn, $this->rm_username, $this->rm_password);
 

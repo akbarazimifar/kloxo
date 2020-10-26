@@ -11,6 +11,7 @@ class serverweb extends lxdb
 	static $__acdesc_show = array("", "", "webserver_config");
 
 	static $__desc_apache_optimize = array("", "", "apache_optimize");
+	static $__desc_enable_keepalive = array("f", "", "enable_keepalive");
 
 	static $__desc_mysql_convert = array("", "", "mysql_convert");
 	static $__desc_mysql_charset = array("", "", "mysql_charset");
@@ -21,8 +22,15 @@ class serverweb extends lxdb
 	static $__desc_php_branch = array("", "", "php_branch");
 	static $__desc_php_used = array("", "", "php_used");
 
+	static $__desc_multiple_php_flag = array("f", "", "multiple_php_enable");
+
 	static $__desc_multiple_php_install = array("", "", "multiple_php_install");
 	static $__desc_multiple_php_already_installed = array("", "", "multiple_php_already_installed");
+	static $__desc_multiple_php_remove = array("", "", "multiple_php_remove");
+
+	static $__desc_pagespeed_cache = array("", "", "pagespeed_cache");
+
+	static $__desc_enable_php52m_fpm = array("", "", "enable_php52m_fpm");
 
 	function createShowUpdateform()
 	{
@@ -35,7 +43,19 @@ class serverweb extends lxdb
 
 			$uflist['php_branch'] = null;
 
+			$uflist['multiple_php_activate'] = null;
 			$uflist['multiple_php_install'] = null;
+			$uflist['multiple_php_remove'] = null;
+
+			$a = getListOnList('php');
+
+			foreach ($a as $k => $v) {
+				if (strpos($v, 'php52') !== false) {
+					$uflist['enable_php52m_fpm'] = null;
+
+					break;
+				}
+			}
 
 			if (isWebProxyOrApache()) {
 				$uflist['php_type'] = null;
@@ -45,6 +65,8 @@ class serverweb extends lxdb
 			$uflist['mysql_convert'] = null;
 
 			$uflist['fix_chownchmod'] = null;
+
+			$uflist['pagespeed_clear_cache'] = null;
 		} else {
 			$uflist['fix_chownchmod_user'] = null;
 		}
@@ -52,65 +74,63 @@ class serverweb extends lxdb
 		return $uflist;
 	}
 
-	function preUpdate($subaction, $param)
-	{
-		// MR -- preUpdate (also preAdd) is new function; process before Update/Add
-
-		// MR -- still any trouble passing value so use this trick
-	//	if (isset($_POST['frm_serverweb_b_multiple_php_install'])) {
-		if ($subaction === 'multiple_php_install') {
-			// MR -- $this->multiple_php_install (frm_serverweb_c_multiple_php_install) still empty
-			// so, use frm_serverweb_b_multiple_php_install (second multiselect)
-			$this->multiple_php_install = $_POST['frm_serverweb_b_multiple_php_install'];
-
-			$join = implode(',', $this->multiple_php_install);
-
-			file_put_contents('/tmp/multiple_php_install.tmp', $join);
-
-			// MR -- no need while under root
-		//	chown('/tmp/multiple_php_install.tmp', 'root:root');
-
-		}
-
-	}
-
 	function updateform($subaction, $param)
 	{
-		$phpm = rl_exec_get(null, $this->syncserver, "glob", array("/opt/*m/usr/bin/php"));
-
 		switch($subaction) {
 			case "apache_optimize":
 				$this->apache_optimize = null;
 
-				exec("cat /etc/httpd/conf.d/~lxcenter.conf | grep '### selected:'", $out);
-				
-				if (strpos($out[0], 'customize') !== false) {
-					$a = array('default', 'low', 'medium', 'high', 'customize');
+				$out = null;
+				exec("cat /etc/httpd/conf.d/~lxcenter.conf | grep -i '### selected:'", $out);
+
+				if (count($out) > 0) {
+					if (strpos($out[0], 'customize') !== false) {
+						$a = array('default', 'low', 'medium', 'high', 'customize');
+					} else {
+						$a = array('default', 'low', 'medium', 'high');
+					}
 				} else {
 					$a = array('default', 'low', 'medium', 'high');
 				}
-				
+			
 				$vlist['apache_optimize'] = array('s', $a);
 
 				$b = '';
-				
-				foreach ($a as $k => $v) {
-					if (strpos($out[0], $v) !== false) {
-						$b = $v;
 
-						break;
+				if (count($out) > 0) {
+					foreach ($a as $k => $v) {
+						if (strpos($out[0], $v) !== false) {
+							$b = $v;
+
+							break;
+						}
 					}
 				}
 
 				if ($b !== '') {
 					$this->setDefaultValue('apache_optimize', $b);
 				}
-	
+
+				$this->enable_keepalive = null;
+
+				$vlist['enable_keepalive'] = null;
+
+				$out = null;
+				exec("cat /etc/httpd/conf.d/~lxcenter.conf | grep -i ^'keepalive on'", $out);
+
+				if (count($out) > 0) {
+					$s = 'on';
+				} else {
+					$s = 'off';
+				}
+
+				$this->setDefaultValue('enable_keepalive', $s);
+
 				break;
 			case "mysql_convert":
 				$this->mysql_convert = null;
 				$this->mysql_charset = null;
-				
+
 				// TODO: "SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'kloxo';"
 				// mysql -u[user] -p -D[database] -e "show table status\G"| egrep "(Index|Data)_length" | awk 'BEGIN { rsum = 0 } { rsum += $2 } END { print rsum }'
 
@@ -119,7 +139,7 @@ class serverweb extends lxdb
 				} else {
 					$vlist['mysql_convert'] = array('s', array('to-myisam', 'to-innodb'));
 				}
-				
+	
 				$vlist['mysql_charset'] = array('s', array( 'utf8'));
 
 				break;
@@ -140,41 +160,30 @@ class serverweb extends lxdb
 				$this->php_type = null;
 				$this->secondary_php = null;
 
-				if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/use_apache24.flg")) {
+				$a = array('suphp_event', 'suphp_worker',
+					'php-fpm_event', 'php-fpm_worker',
+					'fcgid_event', 'fcgid_worker');
+
+				if (file_exists("/etc/httpd/modules/libphp5.so")) {
 					// MR -- remove mod_php on 'php-type' select
-					$vlist['php_type'] = array('s', array(
-						'php-fpm_event', 'php-fpm_worker'));
+					$a = array_merge(array('mod_php_ruid2', 'mod_php_itk','suphp'), $a);
+				}
 
-					$d = db_get_value("serverweb", "pserver-". $this->syncserver, "php_type");
+				if (file_exists("../etc/flag/use_apache24.flg")) {
+					$a = array_merge($a, array('proxy_fcgi_event', 'proxy_fcgi_worker'));
 
-					if (!$d) {
-						db_set_default("serverweb", "php_type", "php-fpm_event", 
-							"nname = 'pserver-{$this->syncserver}'");
-						$this->setDefaultValue('php_type', 'php-fpm_event');
-					} else {
-						if (stripos($d, 'php-fpm') !== false) {
-							$this->setDefaultValue('php_type', $d);
-						} else {
-							$this->setDefaultValue('php_type', 'php-fpm_event');
-						}
-					}
-				} else {
-					// MR -- remove mod_php on 'php-type' select
-					$vlist['php_type'] = array('s', array(
-						'mod_php_ruid2', 'mod_php_itk',
-						'suphp', 'suphp_event', 'suphp_worker',
-						'php-fpm_event', 'php-fpm_worker',
-						'fcgid_event', 'fcgid_worker'));
+				}
 
-					$d = db_get_value("serverweb", "pserver-". $this->syncserver, "php_type");
+				$vlist['php_type'] = array('s', $a);
+
+				$d = db_get_value("serverweb", "pserver-". $this->syncserver, "php_type");
 	
-					if (!$d) {
-						db_set_default("serverweb", "php_type", "php-fpm_event", 
-							"nname = 'pserver-{$this->syncserver}'");
-						$this->setDefaultValue('php_type', 'php-fpm_event');
-					} else {
-						$this->setDefaultValue('php_type', $d);
-					}
+				if (!$d) {
+					db_set_default("serverweb", "php_type", "php-fpm_event", 
+						"nname = 'pserver-{$this->syncserver}'");
+					$this->setDefaultValue('php_type', 'php-fpm_event');
+				} else {
+					$this->setDefaultValue('php_type', $d);
 				}
 
 				$vlist['secondary_php'] = array('f', array('on', 'off'));
@@ -191,7 +200,7 @@ class serverweb extends lxdb
 			case "php_branch":
 				$this->php_branch = null;
 
-				$a = getRpmBranchListOnList('php');
+				$a = getListOnList('php');
 				$vlist['php_branch'] = array('s', $a);
 
 				$this->setDefaultValue('php_branch', getRpmBranchInstalledOnList('php'));
@@ -201,87 +210,90 @@ class serverweb extends lxdb
 				$this->multiple_php_already_installed = null;
 				$this->multiple_php_install = null;
 
-				$a = getRpmBranchListOnList('php');
+			//	$a = rl_exec_get(null, $this->syncserver, "getCleanRpmBranchListOnList", array('php'));
+				$a = getCleanRpmBranchListOnList('php');
 
-				$c = array();
+			//	$g = rl_exec_get(null, $this->syncserver, "getMultiplePhpList");
+				$g = getMultiplePhpList();
 
-				foreach ($a as $k => $v) {
-					if (strpos($v, 'php_(') !== false) {
-						unset($a[$k]);
-					} else {
-						$b = explode('_(', $v);
-						$a[$k] = $b[0];
+				$u = array_diff($a, $g);
 
-						if (strpos($a[$k], 'u') !== false) {
-							$c[] = str_replace('u', '', $a[$k]);
-						}
-					}
-				}
-
-				$a = array_diff($a, $c);
-
-				foreach($a as $k => $v) {
-					$a[$k] = str_replace('u', '', $v) . "m";
-				}
-
-				$d = $phpm;
-
-				foreach ($d as $k => $v) {
-					$e = str_replace('/opt/', '', $v);
-					$e = str_replace('/usr/bin/php', '', $e);
-					$d[$k] = $e;
-				}
-
-				$f = array_diff($a, $d);
-
-				$g = implode(" ", $d);
-
-				$vlist['multiple_php_already_installed'] = array("M", $g);
-
-				$vlist['multiple_php_install'] = array("U", $a);
-
-				// MR -- not able to 'default' value
-			//	$this->setDefaultValue('multiple_php_install', $f);
+				$vlist['multiple_php_install'] = array("U", $u);
 
 				break;
+
+			case "multiple_php_remove":
+				$this->multiple_php_remove = null;
+
+				$a = getMultiplePhpList();
+
+				$vlist['multiple_php_remove'] = array("U", $a);
+
+				break;
+
+			case "multiple_php_activate":
+				$h = implode(" ", getMultiplePhpList());
+
+				$vlist['multiple_php_already_installed'] = array("M", $h);
+
+				$vlist['multiple_php_flag'] = array("f", array('on', 'off'));
+
+				$this->multiple_php_flag = null;
+
+				$s = (file_exists("../etc/flag/enablemultiplephp.flg")) ? 'on' : 'off';
+
+				$this->setDefaultValue('multiple_php_flag', $s);
+
+				break;
+
 			case "php_used":
 				$this->php_used = null;
 
-				$d = $phpm;
+				$d = getMultiplePhpList();
+				$g = getInitialPhpFpmConfig();
 
-				foreach ($d as $k => $v) {
-					$e = str_replace('/opt/', '', $v);
-					$e = str_replace('/usr/bin/php', '', $e);
-					$d[$k] = $e;
-
-					if ($e === 'php52m') {
-						unset($d[$k]);
+				$s = '--PHP Branch--';
+            
+				if (isset($d)) {
+					foreach ($d as $k => $v) {
+						if ($v === 'php52m') {
+							unset($d[$k]);
+						}
 					}
+
+					$d = array_merge(array($s), $d);
+				} else { 
+					$d = array($s);
 				}
 
-				$s = '--Use PHP Branch--';
+				if ($g === 'php') {
+					$j = $s;
+				} else {
+					$j = $g;
+				}
 
-				$d = array_merge(array($s), $d);
+				$this->setDefaultValue('php_used', $j);
 
 				$vlist['php_used'] = array('s', $d);
 
-				foreach ($d as $k => $v) {
+				break;
 
-					if ($v === $s) {
-						$t = "prog=\"php-fpm\"";
-					} else {
-						$t = "custom_name=\"{$v}\"";
-					}
+			case "enable_php52m_fpm":
 
-				//	exec("cat /etc/rc.d/init.d/php-fpm|grep '{$t}'", $out, $ret);
-		
-					$ret = rl_exec_get(null, $this->syncserver, "exec", array("cat /etc/rc.d/init.d/php-fpm|grep '{$t}'"));
+				$this->enable_php52m_fpm = null;
 
-					if ($ret === $t) {
-						$this->setDefaultValue('php_used', $v);
-						break;
-					}
+				$vlist['enable_php52m_fpm'] = array("f", array('on', 'off'));
+
+				if (file_exists("../etc/flag/enable_php52m-fpm.flg")) {
+					$this->setDefaultValue('enable_php52m_fpm', 'on');
 				}
+
+				break;
+
+			case "pagespeed_clear_cache":
+				$this->pagespeed_cache = null;
+
+				$vlist['pagespeed_cache'] = array('s', array( 'clear'));
 
 				break;
 

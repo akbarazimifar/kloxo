@@ -30,7 +30,7 @@ function setupsecondary_main()
 	lxshell_php("../bin/common/mebackup.php");
 
 
-	$slavepass = randomString(7);
+	$slavepass = randomString(8);
 
 	print("Setting up mysql to receive data from master\n");
 	add_line_to_secondary_mycnf($master, $slavepass);
@@ -88,9 +88,5 @@ function add_line_to_secondary_mycnf($master, $slavepass)
 
 	lfile_put_contents("/etc/my.cnf", implode("\n", $ll));
 
-	if (file_exists("/etc/init.d/mysql")) {
-		system("service mysql restart");
-	} else {
-		system("service mysqld restart");
-	}
+	system("sh /script/restart-mysql");
 }

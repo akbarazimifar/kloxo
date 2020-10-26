@@ -19,16 +19,21 @@ class MailForward extends Lxdb
 
 	static function addform($parent, $class, $typetd = null)
 	{
-		if ($parent->isClient()) {
-			$list = get_namelist_from_objectlist($parent->getList('domain'));
-			$vv = array('var' => 'real_clparent_f', 'val' => array('s', $list));
-			$vlist['nname'] = array('m', array('posttext' => "@", 'postvar' => $vv));
-		} else {
-			$vlist['nname'] = array('m', array('posttext' => "@$parent->nname"));
-		}
+		$mlist = get_namelist_from_objectlist($parent->getList('mailaccount'));
+
+	//	if ($typetd['val'] === 'alias') {
+			if ($parent->isClient()) {
+				$list = get_namelist_from_objectlist($parent->getList('domain'));
+				$vv = array('var' => 'real_clparent_f', 'val' => array('s', $list));
+				$vlist['nname'] = array('m', array('posttext' => "@", 'postvar' => $vv));
+			} else {
+				$vlist['nname'] = array('m', array('posttext' => "@$parent->nname"));
+			}
+	//	} else {
+	//		$vlist['nname'] = array('s', $mlist);
+	//	}
 
 		if ($typetd['val'] === 'alias') {
-			$mlist = get_namelist_from_objectlist($parent->getList('mailaccount'));
 			$vlist['forwardaddress'] = array('s', $mlist);
 		} else {
 			$vlist['forwardaddress'] = null;
@@ -121,7 +126,7 @@ class MailForward extends Lxdb
 class all_mailforward extends mailforward
 {
 	static $__desc =  array("n", "",  "all_mailforward");
-	static $__desc_parent_name_f =  array("n", "",  "domain");
+	static $__desc_parent_name_f =  array("n", "",  "owner");
 	static $__desc_parent_clname =  array("n", "",  "domain");
 
 	function isSelect()

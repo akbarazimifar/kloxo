@@ -47,18 +47,23 @@ class portconfig_b extends lxaclass
 	static $__desc_nonsslport = array("", "", "plain_port");
 	static $__desc_nonsslportdisable_flag = array("f", "", "disable_plainport");
 	static $__desc_redirectnonssl_flag = array("f", "", "redirect_non_ssl_to_ssl");
+	static $__desc_redirecttodomain = array("", "", "redirect_to_domain");
+
+	static $__desc_kloxowrapper = array("", "", "kloxo_wrapper");
+	static $__desc_randomimage_flag = array("f", "", "login_randomimage");
+	static $__desc_chooseimage = array("", "", "login_chooseimage");
 }
 
 class kloxoconfig_b extends lxaclass
 {
-	static $__desc_remoteinstall_flag = array("f", "", "host_installapp_remotely");
-	static $__desc_installapp_url = array("", "", "Url_for_remote_installapp");
+	static $__desc_remoteinstall_flag = array("f", "", "host_easyinstaller_remotely");
+	static $__desc_easyinstaller_url = array("", "", "Url_for_remote_easyinstaller");
 }
 
 class lxadminconfig_b extends lxaclass
 {
-	static $__desc_remoteinstall_flag = array("f", "", "host_installapp_remotely");
-	static $__desc_installapp_url = array("", "", "Url_for_remote_installapp");
+	static $__desc_remoteinstall_flag = array("f", "", "host_easyinstaller_remotely");
+	static $__desc_easyinstaller_url = array("", "", "Url_for_remote_easyinstaller");
 }
 
 class customaction_b extends lxaclass
@@ -109,7 +114,7 @@ class generalmisc_b extends Lxaclass
 	static $__desc_maintenance_flag = array("f", "", "system_under_maintenance");
 	static $__desc_xenimportdriver = array("", "", "xen_import_driver");
 	static $__desc_webmail_system_default = array("", "", "webmail_system_default");
-	static $__desc_disableinstallapp = array("f", "", "disable_installapp");
+	static $__desc_disableeasyinstaller = array("f", "", "disable_easyinstaller");
 	static $__desc_htmltitle = array("", "", "html_title");
 	static $__desc_xeninitrd_flag = array("f", "", "xen_initrd_flag");
 	static $__desc_dont_get_live_status = array("f", "", "dont_get_vps_live_status");
@@ -196,7 +201,7 @@ class General extends Lxdb
 			throw new lxException($login->getThrow("could_not_save_file"), '', '../etc/conf/scavenge_time.conf');
 		}
 
-		$f = "/usr/local/lxlabs/kloxo/etc/flag/enablescavengesendmail.flg";
+		$f = "../etc/flag/enablescavengesendmail.flg";
 
 		if ($param['generalmisc_b-sendmailflag'] === 'on') {
 			touch($f);
@@ -250,12 +255,14 @@ class General extends Lxdb
 		if (isOn($param['selfbackupparam_b-selfbackupflag'])) {
 			$fn = lxftp_connect($param['selfbackupparam_b-ftp_server']);
 			$mylogin = ftp_login($fn, $param['selfbackupparam_b-rm_username'], $param['selfbackupparam_b-rm_password']);
-
 			if (!$mylogin) {
 				$p = error_get_last();
 				throw new lxException($login->getThrow('could_not_connect_to_ftp_server'), '', $p);
 			}
+
+			ftp_pasv($fn, true);
 		}
+
 		return $param;
 	}
 
@@ -263,16 +270,45 @@ class General extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$sslport = $param['portconfig_b-sslport'];
-		$nonsslport = $param['portconfig_b-nonsslport'];
+		$sslport = $this->portconfig_b->sslport = $param['portconfig_b-sslport'];
+		$nonsslport = $this->portconfig_b->nonsslport = $param['portconfig_b-nonsslport'];
+		$redirect_to_domain = $this->portconfig_b->redirecttodomain = $param['portconfig_b-redirecttodomain'];
+		$redirect_to_ssl = $this->portconfig_b->redirectnonssl_flag = $param['portconfig_b-redirectnonssl_flag'];
+
+		$randomimage_flag = $this->portconfig_b->randomimage_flag = $param['portconfig_b-randomimage_flag'];
+		$chooseimage = $this->portconfig_b->chooseimage = $param['portconfig_b-chooseimage'];
+
+		$kloxowrapper = $this->portconfig_b->kloxowrapper = $param['portconfig_b-kloxowrapper'];
 
 		exec("echo '$sslport' > /home/kloxo/httpd/cp/.ssl.port");
 		exec("echo '$nonsslport' > /home/kloxo/httpd/cp/.nonssl.port");
 
-		if ($param['portconfig_b-redirectnonssl_flag'] === 'on') {
-			touch("/usr/local/lxlabs/kloxo/httpdocs/login/redirect-to-ssl");
+		$loginpath = "../httpdocs/login";
+
+		if ($redirect_to_ssl === 'on') {
+			touch("{$loginpath}/redirect-to-ssl");
 		} else {
-			unlink("/usr/local/lxlabs/kloxo/httpdocs/login/redirect-to-ssl");
+			unlink("{$loginpath}/redirect-to-ssl");
+		}
+
+		if ($redirect_to_domain !== '') {
+			validate_domain_name($redirect_to_domain);
+
+			exec("echo '$redirect_to_domain' > {$loginpath}/redirect-to-domain");
+		} else {
+			exec("rm -f {$loginpath}/redirect-to-domain");
+		}
+
+		if ($randomimage_flag === 'off') {
+			if (trim($chooseimage) !== '') {
+				$c = trim($chooseimage);
+			} else {
+				$c = '';
+			}
+
+			exec("echo '{$c}' > {$loginpath}/.norandomimage");
+		} else {
+			exec("'rm' -f {$loginpath}/.norandomimage");
 		}
 
 		return $param;
@@ -280,21 +316,56 @@ class General extends Lxdb
 
 	function postUpdate()
 	{
+		global $ghtml;
+
 		// We need to write because reads everything from the database.
 		$this->write();
 
 		if ($this->subaction === 'generalsetting') {
-			exec("sh /script/fixweb --server=all --nolog");
+			exec("sh /script/fixphp --server=all; sh /script/fixweb --server=all");
 
-			$this->generalmisc_b->disableinstallapp = 'on';
+			$this->generalmisc_b->disableeasyinstaller = 'on';
 
-			touch("/usr/local/lxlabs/kloxo/etc/flag/disableinstallapp.flg");
+			touch("../etc/flag/disableeasyinstaller.flg");
+		} elseif ($this->subaction === 'portconfig') {
+			exec("sh /script/select-kloxo-wrapper {$this->portconfig_b->kloxowrapper}");
+
+			$host = $_SERVER["HTTP_HOST"];
+			$splitter = explode(":", $host);
+
+			if ($this->portconfig_b->redirecttodomain !== '') {
+				$domain = $this->portconfig_b->redirecttodomain;
+			} else {
+				$domain = $splitter[0];
+			}
+
+			if ($this->portconfig_b->redirectnonssl_flag === 'on') {
+				$scheme = 'https';
+				$port = $this->portconfig_b->sslport;
+			} else {
+				$scheme = $_SERVER["HTTP_SCHEME"];
+
+				if ($scheme === 'https') {
+					$port = $this->portconfig_b->sslport;
+				} else {
+					$port = $this->portconfig_b->nonsslport;
+				}
+			}
+
+			$requesturi = $_SERVER["REQUEST_URI"];
+
+			$cmd = "/tmp/kloxo-restart.sh";
+			$text = "sh /script/restart; 'rm' -f {$cmd}";
+			file_put_contents($cmd, $text);
+
+			lxshell_background("sh", $cmd);
+			$ghtml->print_redirect_self("{$scheme}://{$domain}:{$port}/display.php?frm_action=show");
 		}
 	}
 
 	function updateGeneralsetting($param)
 	{
-		$f = "/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg";
+		$f = "../etc/flag/enablecronforall.flg";
 
 		if ($param['enable_cronforall'] === 'on') {
 			touch($f);
@@ -349,7 +420,7 @@ class General extends Lxdb
 
 			case "kloxo_config":
 				$vlist['kloxoconfig_b-remoteinstall_flag'] = null;
-				$vlist['kloxoconfig_b-installapp_url'] = null;
+				$vlist['kloxoconfig_b-easyinstaller_url'] = null;
 
 				break;
 
@@ -361,6 +432,32 @@ class General extends Lxdb
 				$vlist['portconfig_b-nonsslport'] = null;
 			//	$vlist['portconfig_b-nonsslportdisable_flag'] = null;
 				$vlist['portconfig_b-redirectnonssl_flag'] = null;
+				$vlist['portconfig_b-redirecttodomain'] = null;
+
+				if (file_exists("../etc/flag/lowmem.flag")) {
+					$this->portconfig_b->setDefaultValue('kloxowrapper', 'kloxo.exe');
+				} else {
+					$this->portconfig_b->setDefaultValue('kloxowrapper', 'lxphp.exe');
+				}
+
+				$vlist['portconfig_b-kloxowrapper'] = array('s', array('kloxo.exe', 'lxphp.exe'));
+
+				$vlist['portconfig_b-randomimage_flag'] = null;
+			//	$vlist['portconfig_b-chooseimage'] = array('L', '/');
+				$vlist['portconfig_b-chooseimage'] = array('s', lscandir_without_dot(getreal("/theme/background")));
+
+				if (file_exists("./login/.norandomimage")) {
+					$this->portconfig_b->setDefaultValue('randomimage_flag', 'off');
+
+					$c = trim(file_get_contents("./login/.norandomimage"));
+					
+					if ($c !== '') {
+						$this->portconfig_b->setDefaultValue('chooseimage', $c);
+					}
+				} else {
+					$this->portconfig_b->setDefaultValue('randomimage_flag', 'on');
+					$this->portconfig_b->setDefaultValue('chooseimage', '');
+				}
 
 				break;
 
@@ -403,9 +500,9 @@ class General extends Lxdb
 					$this->generalmisc_b->setDefaultValue('webstatisticsprogram', 'awstats');
 					$vlist['generalmisc_b-webstatisticsprogram'] = array('s', $list);
 
-					$this->generalmisc_b->disableinstallapp = 'on';
-					touch("/usr/local/lxlabs/kloxo/etc/flag/disableinstallapp.flg");
-				//	$vlist['generalmisc_b-disableinstallapp'] = 'on';
+					$this->generalmisc_b->disableeasyinstaller = 'on';
+					touch("../etc/flag/disableeasyinstaller.flg");
+				//	$vlist['generalmisc_b-disableeasyinstaller'] = 'on';
 
 					$list = lx_merge_good('--chooser--', mmail::getWebmailProgList());
 					$this->generalmisc_b->setDefaultValue('webmail_system_default', '--chooser--');
@@ -420,7 +517,7 @@ class General extends Lxdb
 
 				$vlist['enable_cronforall'] = array('f', array('on', 'off'));
 
-				if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/enablecronforall.flg")) {
+				if (file_exists("../etc/flag/enablecronforall.flg")) {
 					$this->setDefaultValue('enable_cronforall', 'on');
 				}
 
@@ -471,7 +568,8 @@ class General extends Lxdb
 				$vlist['selfbackupparam_b-ftp_server'] = null;
 				$vlist['selfbackupparam_b-rm_directory'] = null;
 				$vlist['selfbackupparam_b-rm_username'] = null;
-				$vlist['selfbackupparam_b-rm_password'] = array('m', '***');
+			//	$vlist['selfbackupparam_b-rm_password'] = array('m', '***');
+				$vlist['selfbackupparam_b-rm_password'] = null;
 			//	$vlist['selfbackupparam_b-rm_last_number'] = null;
 
 				break;
@@ -505,11 +603,11 @@ class General extends Lxdb
 
 	function createShowAlist(&$alist, $subaction = null)
 	{
-		// MR --- process sync before enter to page -- related to installapp issue
-		if (lxfile_exists("/usr/local/lxlabs/kloxo/etc/flag/disableinstallapp.flg")) {
-			$this->generalmisc_b->disableinstallapp = 'on';
+		// MR --- process sync before enter to page -- related to easyinstaller issue
+		if (lxfile_exists("../etc/flag/disableeasyinstaller.flg")) {
+			$this->generalmisc_b->disableeasyinstaller = 'on';
 		} else {
-			$this->generalmisc_b->disableinstallapp = 'off';
+			$this->generalmisc_b->disableeasyinstaller = 'off';
 		}
 	}
 

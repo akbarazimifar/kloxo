@@ -1,29 +1,16 @@
 #!/bin/sh
 
-echo "*** Process for NSD service ***"
+echo "*** Restart for NSD service ***"
 
 if [ ! -f /var/run/nsd/nsd.pid ] ; then
 	if [ -f /var/lock/subsys/nsd ] ; then
 		'rm' -f /var/lock/subsys/nsd
 	fi
-
-	/etc/rc.d/init.d/nsd start
-else
-	echo "  - No need started"
 fi
 
-if [ -f /usr/sbin/nsd-control ] ; then
-	echo "  - Process with 'nsd-control': transfer + write + reload + notify"
-	for i in transfer write reload notify ; do
-		#nsd-control ${i} >/dev/null 2>&1
-		echo -n "    - ${i}: "
-		nsd-control ${i}
-	done
-else
-	echo "  - Process with 'nsdc': update + rebuild + reload + notify"
-	for i in transfer rebuild reload notify ; do
-		echo -n "    - ${i}: "
-		nsdc ${i}
-	done
-fi
+prog='nsd'
+
+. /script/directory
+
+. ../etc/process/service.inc
 

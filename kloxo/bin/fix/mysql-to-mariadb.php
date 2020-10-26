@@ -32,10 +32,6 @@ if (strpos($mysqlbranch, "MariaDB") !== false) {
 			system("yum remove mysql*.i386 -y");
 
 			system("yum remove mysql*.i686 -y");
-
-			$mariarepo = "mratwork-mariadb-64";
-		} else {
-			$mariarepo = "mratwork-mariadb-32";
 		}
 
 		
@@ -62,20 +58,20 @@ if (strpos($mysqlbranch, "MariaDB") !== false) {
 		chown("/var/lib/mysqltmp", "mysql:mysql");
 
 		echo "- Install MariaDB\n";
-		system("yum install MariaDB-server MariaDB-shared --enablerepo={$mariarepo} -y");
+		system("yum install MariaDB MariaDB-shared -y");
 
 		system("'cp' -f /etc/my.cnf._bck_ /etc/my.cnf.d/my.cnf");
 
 		system("chmod 777 /var/lib/mysqltmp");
 
 		echo "- Restart MariaDB\n";
-		system("chkconfig mysql on");
+		system("chkconfig mysql on >/dev/null 2>&1");
 		system("service mysql restart");
 //	}
 }
 
 echo "\n";
-//echo " - Note: remove 'skip-innodb' from '/etc/my.cnf' and '/etc/my.cnf.d/my.cnf'.\n";
+//echo " - Note: remove 'skip-innodb' from '/etc/my.cnf' and '/etc/my.cnf.d/server.cnf'.\n";
 //echo "   Need reboot!.\n\n";
 
 echo "*** Change MySQL to MariaDB - end ***\n";

@@ -24,7 +24,7 @@ class ClientBase extends ClientCore
 
 	static $__desc_skeleton = array("", "", "skeleton");
 	static $__desc_skeletonarchive = array("", "", "current_skeleton");
-	static $__desc_skeletonarchive_f = array("F", "", "upload_archive_of_skeleton_(zip_file)");
+	static $__desc_skeletonarchive_f = array("F", "", "upload_archive_of_skeleton");
 
 	static $__desc___v_priv_used_client_num = array("S", "", "clients");
 	static $__desc___v_priv_used_traffic_usage = array("S", "", "traffic");
@@ -48,7 +48,7 @@ class ClientBase extends ClientCore
 	static $__desc_wall_subject_f = array("n", "", "subject");
 	static $__desc_resourceplan_used_f = array("n", "", "Plan");
 	static $__desc_wall_message_f = array("t", "", "message");
-//	static $__desc_installapp_app = array("", "", "install_application");
+	static $__desc_easyinstaller_app = array("", "", "install_easyinstaller");
 
 	// Objects
 	static $__acdesc_update_information = array("", "", "information");
@@ -149,6 +149,7 @@ class ClientBase extends ClientCore
 	{
 		$blist[] = array("a=update&sa=clientsendmessage");
 		$blist[] = array("a=delete&c=client");
+
 		return $blist;
 	}
 
@@ -180,14 +181,16 @@ class ClientBase extends ClientCore
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		if ($sgbl->isKloxo() && $this->isAdmin()) {
+	//	if ($sgbl->isKloxo() && $this->isAdmin()) {
+		if ($sgbl->isKloxo() && ($login->nname === 'admin')) {
 			if (!is_unlimited($this->priv->maindomain_num) && ($this->priv->maindomain_num - $this->used->maindomain_num) < 6) {
 				$ghtml->__http_vars['frm_smessage'] = 'warn_license_limit';
 				$ghtml->__http_vars['frm_m_smessage_data'] = 'maindomain_num';
 			}
 		}
 
-		if ($this->isAdmin()) {
+	//	if ($this->isAdmin()) {
+		if ($login->nname === 'admin') {
 			$v = db_get_value("sshconfig", "localhost", "without_password_flag");
 			$vv = db_get_value("sshconfig", "localhost", "config_flag");
 
@@ -218,33 +221,28 @@ class ClientBase extends ClientCore
 			if (!$gbl->getSyncClass($this->__masterserver, $this->syncserver, 'web')) {
 				$ghtml->__http_vars['frm_emessage'] = "switch_program_not_set";
 			}
+		}
 
-			if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
+		if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
+		//	if ($this->isAdmin()) {
+			if ($login->nname === 'admin') {
 				$server = $this->syncserver;
 				$server_phpini = unserialize(base64_decode(db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b")));
 
 				// MR -- pserver must set/update php.ini
-				if (!isset($server_phpini->session_save_path_flag)) {
+			//	if (!isset($server_phpini->session_save_path_flag)) {
+				if (!$server_phpini->session_save_path_flag) {
 					$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_pserver";
-				} else {
-					// MR -- double check for php.ini in client (especially for admin)
-					$server_phpini = unserialize(base64_decode(db_get_value("phpini", "client-" . $this->nname, "ser_phpini_flag_b")));
-
-					if (!isset($server_phpini->session_save_path_flag)) {
-						$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_client";
-					}
 				}
-			}
-		} else {
-		/*
-			// MR -- disabled because still trouble in client level!
-			if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
+
+				// MR -- double check for php.ini in client (especially for admin)
 				$server_phpini = unserialize(base64_decode(db_get_value("phpini", "client-" . $this->nname, "ser_phpini_flag_b")));
-				if (!isset($server_phpini->session_save_path_flag)) {
+
+			//	if (!isset($server_phpini->session_save_path_flag)) {
+				if (!$server_phpini->session_save_path_flag) {
 					$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_client";
 				}
 			}
-		*/
 		}
 
 		parent::getAnyErrorMessage();
@@ -431,9 +429,9 @@ class ClientBase extends ClientCore
 
 		$alist['__title_amisc'] = $login->getKeywordUc('misc');
 
-		if (!$this->isLogin()) {
+	//	if (!$this->isLogin()) {
 			$alist['__v_dialog_disa'] = "a=updateform&sa=disable_per";
-		}
+	//	}
 
 		if ($login->priv->isOn('logo_manage_flag') && $this->isLogin()) {
 			$alist['__v_dialog_uplo'] = "o=sp_specialplay&a=updateform&sa=upload_logo";
@@ -531,6 +529,7 @@ class ClientBase extends ClientCore
 		$this->skeletonarchive = $key_file;
 		$this->__skeletion_tmp = $key_file_tmp;
 		$this->setUpdateSubaction('skeleton');
+
 		// Don't ever return the param. In the param the skeletonarchive is null and thus the value will be set to that.
 		//return $param;
 	}
@@ -615,7 +614,7 @@ class ClientBase extends ClientCore
 		// Issue #671 - Fixed backup-restore issue
 		// change to tgz for default that make less space especially temp process
 
-		if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/backup_compress_disabled.flg")) {
+		if (file_exists("../etc/flag/backup_compress_disabled.flg")) {
 			return "tar";
 		} else {
 			return "tgz";
@@ -662,13 +661,13 @@ class ClientBase extends ClientCore
 		$this->lxclientpostAdd();
 
 		$this->contactemail = trim($this->contactemail);
-	/*
-		if ($this->installapp_app && $this->installapp_app !== '--leave--') {
+
+		if ($this->easyinstaller_app && $this->easyinstaller_app !== '--leave--') {
 			if (!validate_email($this->contactemail)) {
-				throw new lxException($login->getThrow("installapp_needs_valid_contactemail"), '', $this->contactemail);
+				throw new lxException($login->getThrow("easyinstaller_needs_valid_contactemail"), '', $this->contactemail);
 			}
 		}
-	*/
+
 		if ($this->priv->mysqldb_num > 0) {
 			$this->createDefaultDatabase();
 		}
@@ -680,11 +679,10 @@ class ClientBase extends ClientCore
 		if ($sgbl->isKloxo() && $this->domain_name) {
 			$this->default_domain = $this->domain_name;
 			$this->createDefaultDomain($this->domain_name, $this->dnstemplate_name);
-		/*
-			if ($this->installapp_app && $this->installapp_app !== '--leave--') {
-				$this->createDefaultApplication($this->domain_name, $this->installapp_app);
+		
+			if ($this->easyinstaller_app && $this->easyinstaller_app !== '--leave--') {
+				$this->createDefaultApplication($this->domain_name, $this->easyinstaller_app);
 			}
-		*/
 		}
 
 		$this->notifyObjects('add');
@@ -987,7 +985,7 @@ class ClientBase extends ClientCore
 		$param['used_s_client_num'] = '-';
 
 		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password']);
+		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
 
 		return $param;
 	}
@@ -1186,7 +1184,7 @@ class ClientBase extends ClientCore
 					$vlist['dnstemplate_name'] = make_hidden_if_one($dlist);
 				//	$list = array('wordpress', 'mambo', 'joomla', 'dolphin');
 				//	$list = lx_merge_good('--leave--', $list);
-				//	$vlist['installapp_app'] = array('s', $list);
+				//	$vlist['easyinstaller_app'] = array('s', $list);
 				}
 			*/
 		}

@@ -1,32 +1,93 @@
-### begin - web of '<?php echo $domainname; ?>' - do not remove/modify this line
+<?php
+
+//exec("rpm -qa|grep nginx|grep pagespeed", $out, $ret);
+
+$nginx_pagespeed_ready = false;
+
+if (file_exists("/etc/nginx/conf.d/pagespeed.conf")) {
+	$nginx_pagespeed_ready = true;
+}
+
+$altconf = "/opt/configs/nginx/conf/customs/{$domainname}.conf";
+
+if (file_exists($altconf)) {
+	print("## MR - Use '{$altconf}' instead this file");
+	return;
+}
+?>
+### begin - web of '<?=$domainname;?>' - do not remove/modify this line
 
 <?php
 
-if (($webcache === 'none') || (!$webcache)) {
-    $ports[] = '80';
-    $ports[] = '443';
-} else {
-    $ports[] = '8080';
-    $ports[] = '8443';
+$conn_timeout = "fastcgi_connect_timeout {$timeout}s;
+\tfastcgi_send_timeout {$timeout}s;
+\tfastcgi_read_timeout {$timeout}s;
+
+\tproxy_connect_timeout {$timeout}s;
+\tproxy_send_timeout {$timeout}s;
+\tproxy_read_timeout {$timeout}s;";
+
+$webdocroot = $rootpath;
+
+if (!isset($phpselected)) {
+	$phpselected = 'php';
 }
 
-$listens = array('listen_nonssl', 'listen_ssl');
+if (!isset($timeout)) {
+	$timeout = '300';
+}
 
-foreach ($certnamelist as $ip => $certname) {
-	if (file_exists("/home/kloxo/client/{$user}/ssl/{$domainname}.key")) {
-		$certnamelist[$ip] = "/home/kloxo/client/{$user}/ssl/{$domainname}";
-	} else {
-		$certnamelist[$ip] = "/home/kloxo/httpd/ssl/{$certname}";
-	}
+if (($webcache === 'none') || (!$webcache)) {
+	$ports[] = '80';
+	$ports[] = '443';
+} else {
+	$ports[] = '8080';
+	$ports[] = '8443';
 }
 
 $statsapp = $stats['app'];
 
 $statsprotect = ($stats['protect']) ? true : false;
 
+$disabledocroot = "/home/kloxo/httpd/disable";
+$cpdocroot = "/home/kloxo/httpd/cp";
+
+if ($statsapp === 'webalizer') {
+	$statsdocroot = "/home/httpd/{$domainname}/webstats";
+} else {
+	$statsdocroot_base = "/home/kloxo/httpd/awstats/wwwroot";
+	$statsdocroot = "{$statsdocroot_base}/cgi-bin";
+}
+
+$globalspath = "/opt/configs/nginx/conf/globals";
+
+$gzip_base_conf = getLinkCustomfile($globalspath, "gzip.conf");
+
+$ssl_base_conf = getLinkCustomfile($globalspath, "ssl_base.conf");
+
+$acmechallenge_conf = getLinkCustomfile($globalspath, "acme-challenge.conf");
+
+$pagespeed_conf = getLinkCustomfile($globalspath, "pagespeed.conf");
+
+$cgi_conf = getLinkCustomfile($globalspath, "cgi.conf");
+
+$listens = array('listen_nonssl', 'listen_ssl');
+
+$switches = array('', '_ssl');
+
+foreach ($certnamelist as $ip => $certname) {
+	$sslpath = "/home/kloxo/ssl";
+
+	if (file_exists("{$sslpath}/{$domainname}.key")) {
+		$certnamelist[$ip] = "{$sslpath}/{$domainname}";
+	} else {
+		$certnamelist[$ip] = "{$sslpath}/{$certname}";
+	}
+}
+
 $serveralias = "{$domainname} www.{$domainname}";
 
-$excludedomains = array("cp","webmail");
+$excludedomains = array("cp", "webmail");
 
 $excludealias = implode("|", $excludedomains);
 
@@ -96,390 +157,375 @@ $fpmportapache = 50000;
 
 exec("ip -6 addr show", $out);
 
-if ($out[0]) {
+if (count($out) > 0) {
 	$IPv6Enable = true;
 } else {
 	$IPv6Enable = false;
 }
 
-$disabledocroot = "/home/kloxo/httpd/disable";
-$cpdocroot = "/home/kloxo/httpd/cp";
+if ($general_header) {
+	$gh = explode("\n", trim($general_header, "\n"));
 
-$globalspath = "/opt/configs/nginx/conf/globals";
+	$general_header_text = "";
 
-if (file_exists("{$globalspath}/custom.generic.conf")) {
-	$genericconf = 'custom.generic.conf';
+	foreach ($gh as $k => $v) {
+		if (stripos($v, 'x-powered-by') !== false) {
+			// no action
+		} else {
+			$general_header_text .= "\tadd_header {$v};\n";
+		}
+	}
+
+	$general_header_text .= "\tadd_header X-Supported-By \"Kloxo-MR 7.0\";";
+}
+
+if ($https_header) {
+	$hh = explode("\n", trim($https_header, "\n"));
+
+	$https_header_text = "";
+
+	foreach ($hh as $k => $v) {
+		$https_header_text .= "\tadd_header {$v};\n";
+	}
+}
+
+if (intval($static_files_expire) > -1) {
+	$static_files_expire_text = "\tlocation ~* ^.+\.(?:jpe?g|gif|png|ico|css|pdf|js)$ {\n" .
+		"\t\texpires {$static_files_expire}d;\n" .
+		"\t\taccess_log off;\n" .
+		"\t\troot \$var_rootdir;\n" .
+		"\t}";
 } else {
-	$genericconf = 'generic.conf';
+	$static_files_expire_text = "\t# No static files expire";
 }
 
 if ($disabled) {
-	$user = 'apache';
+	$cpdocroot = $statsdocroot = $webmaildocroot = $webdocroot = $disabledocroot;
 }
-
-$count = 0;
 
 foreach ($certnamelist as $ip => $certname) {
 	$count = 0;
 
 	foreach ($listens as &$listen) {
 		$protocol = ($count === 0) ? "http://" : "https://";
-
-		if ($disabled) {
 ?>
 
-## cp for '<?php echo $domainname; ?>'
+## cp for '<?=$domainname;?>'
 server {
 	#disable_symlinks if_not_owner;
-	
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
+
+	include '<?=$gzip_base_conf;?>';
+
+<?=$general_header_text;?>
+
 <?php
-			if ($count !== 0) {
+		if ($count !== 0) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
-				if (file_exists("{$certname}.ca")) {
+			if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-				}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 			}
+		}
 ?>
 
-	server_name cp.<?php echo $domainname; ?>;
+	server_name cp.<?=$domainname;?>;
 
-	index <?php echo $indexorder; ?>;
+	include '<?=$acmechallenge_conf;?>';
 
-	set $var_domain 'cp.<?php echo $domainname; ?>';
+	index <?=$indexorder;?>;
 
-	set $var_rootdir '<?php echo $disabledocroot; ?>';
+	set $var_domain 'cp.<?=$domainname;?>';
+	set $var_rootdir '<?=$cpdocroot;?>';
 
 	root $var_rootdir;
 
 	set $var_user 'apache';
+	set $var_fpmport '<?=$fpmportapache;?>';
+	set $var_phpselected 'php';
 
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
+	include '<?=getLinkCustomfile($globalspath, "php-fpm_standard{$switches[$count]}.conf");?>';
 }
 
 
-## webmail for '<?php echo $domainname; ?>'
+## stats for '<?=$domainname;?>'
 server {
 	#disable_symlinks if_not_owner;
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
+
+	include '<?=$gzip_base_conf;?>';
+
+<?=$general_header_text;?>
+
 <?php
-			if ($count !== 0) {
+		if ($count !== 0) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
-				if (file_exists("{$certname}.ca")) {
+			if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-				}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 			}
+		}
 ?>
 
-	server_name webmail.<?php echo $domainname; ?>;
+	server_name stats.<?=$domainname;?>;
 
-	index <?php echo $indexorder; ?>;
+	include '<?=$acmechallenge_conf;?>';
 
-	set $var_domain 'webmail.<?php echo $domainname; ?>';
+	index <?=$indexorder;?>;
 
-	set $var_rootdir '<?php echo $disabledocroot; ?>';
+	set $var_domain 'stats.<?=$domainname;?>';
+	set $var_rootdir '<?=$statsdocroot;?>';
 
 	root $var_rootdir;
 
 	set $var_user 'apache';
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
+	set $var_fpmport '<?=$fpmportapache;?>';
+	set $var_phpselected 'php';
 <?php
-		} else {
+		if ($enablestats) {
 ?>
 
-## cp for '<?php echo $domainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-	
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+	include '<?=getLinkCustomfile($globalspath, "stats.conf");?>';
 <?php
-			if ($count !== 0) {
+			if ($statsprotect) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-				if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-				}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
+	include '<?=getLinkCustomfile($globalspath, "dirprotect_stats.conf");?>';
 <?php
 			}
+		}
+?>
+}
+
+
+## webmail for '<?=$domainname;?>'
+server {
+	#disable_symlinks if_not_owner;
+
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
+
+	include '<?=$gzip_base_conf;?>';
+
+<?=$general_header_text;?>
+
+<?php
+		if ($count !== 0) {
 ?>
 
-	server_name cp.<?php echo $domainname; ?>;
+	include '<?=$ssl_base_conf;?>';
 
-	index <?php echo $indexorder; ?>;
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
+<?php
+			if (file_exists("{$certname}.ca")) {
+?>
+	ssl_trusted_certificate <?=$certname;?>.ca;
 
-	set $var_domain 'cp.<?php echo $domainname; ?>';
+<?=$https_header_text;?>
 
-	set $var_rootdir '<?php echo $cpdocroot; ?>';
+<?php
+			}
+		}
+?>
+
+	server_name webmail.<?=$domainname;?> mail.<?=$domainname;?>;
+
+	include '<?=$acmechallenge_conf;?>';
+
+	index <?=$indexorder;?>;
+
+	set $var_domain 'webmail.<?=$domainname;?>';
+	set $var_rootdir '<?=$webmaildocroot;?>';
 
 	root $var_rootdir;
 
 	set $var_user 'apache';
+	set $var_fpmport '<?=$fpmportapache;?>';
+	set $var_phpselected 'php';
 
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
+	include '<?=getLinkCustomfile($globalspath, "php-fpm_standard{$switches[$count]}.conf");?>';
 <?php
-			if ($webmailremote) {
+
+		if ($webmailremote) {
 ?>
 
-## webmail for '<?php echo $domainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
-				if ($count !== 0) {
-?>
-
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-					if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-					}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
-				}
-?>
-
-	server_name webmail.<?php echo $domainname; ?>;
-
-	if ($host != '<?php echo $webmailremote; ?>') {
-		rewrite ^/(.*) '<?php echo $protocol; ?><?php echo $webmailremote; ?>/$1' permanent;
+	if ($host != '<?=$webmailremote;?>') {
+		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1' permanent;
 	}
+<?php
+		}
+
+?>
 }
 
+
+## web for '<?=$domainname;?>'
+server {
+	#disable_symlinks if_not_owner;
+<?php
+		if ($nginx_pagespeed_ready) {
+			if (!$disable_pagespeed) {
+?>
+
+	include '<?=$pagespeed_conf;?>';
 <?php
 			} else {
 ?>
-
-## webmail for '<?php echo $domainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
-				if ($count !== 0) {
-?>
-
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-					if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-					}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
-				}
-?>
-
-	server_name webmail.<?php echo $domainname; ?>;
-
-	index <?php echo $indexorder; ?>;
-
-	set $var_domain 'webmail.<?php echo $domainname; ?>';
-
-	set $var_rootdir '<?php echo $webmaildocroot; ?>';
-
-	root $var_rootdir;
-
-	set $var_user 'apache';
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
+	pagespeed off;
 <?php
 			}
 		}
 ?>
 
-## web for '<?php echo $domainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
 <?php
-		if ($enablecgi) {
+	//	if ((!$reverseproxy) || ($webselected === 'front-end')) {
 ?>
 
-	## MR -- 'enable-cgi' not implementing yet
+	include '<?=$gzip_base_conf;?>';
+<?php
+	//	}
+?>
+
+<?=$general_header_text;?>
+
+<?php
+		if ($dirindex) {
+?>
+
+	autoindex on;
 <?php
 		}
-?>
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
 		if ($count !== 0) {
 			if ($enablessl) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
 				if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 				}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
 			}
 		}
 
 		if ($ip === '*') {
 ?>
 
-	server_name <?php echo $serveralias; ?>;
+	server_name <?=$serveralias;?>;
 <?php
 		} else {
 ?>
 
-	server_name <?php echo $serveralias; ?> <?php echo $ip; ?>;
+	server_name <?=$serveralias;?> <?=$ip;?>;
 <?php
 		}
 ?>
 
-	index <?php echo $indexorder; ?>;
+	include '<?=$acmechallenge_conf;?>';
 
-	set $var_domain <?php echo $domainname; ?>;
+	index <?=$indexorder;?>;
+
+	set $var_domain <?=$domainname;?>;
 <?php
 		if ($wwwredirect) {
 ?>
 
-	if ($host ~* ^(<?php echo $domainname; ?>)$) {
-		rewrite ^/(.*) '<?php echo $protocol; ?>www.<?php echo $domainname; ?>/$1' permanent;
+	if ($host ~* ^(<?=$domainname;?>)$) {
+		rewrite ^/(.*) '<?=$protocol;?>www.<?=$domainname;?>/$1' permanent;
 	}
 <?php
 		}
 
-		if ($disabled) {
+		if (($count === 0) && ($httpsredirect)) {
 ?>
 
-	set $var_rootdir '<?php echo $disabledocroot; ?>';
+	return 301 https://$host$request_uri;
 <?php
-		} else {
-			if ($wildcards) {
+		}
+
+		if ($wildcards) {
 ?>
 
-	set $var_rootdir '<?php echo $rootpath; ?>';
+	set $var_rootdir '<?=$webdocroot;?>';
 <?php
-				foreach ($excludedomains as &$ed) {
+			foreach ($excludedomains as &$ed) {
 ?>
 
-	if ($host ~* ^(<?php echo $ed; ?>.<?php echo $domainname; ?>)$) {
+	if ($host ~* ^(<?=$ed;?>.<?=$domainname;?>)$) {
 <?php
-					if ($ed !== 'webmail') {
+				if ($ed !== 'webmail') {
 ?>
-		set $var_rootdir '/home/kloxo/httpd/<?php echo $ed; ?>/';
+		set $var_rootdir '/home/kloxo/httpd/<?=$ed;?>/';
+<?php
+				} else {
+					if ($webmailremote) {
+?>
+		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1' permanent;
 <?php
 					} else {
-			  			if ($webmailremote) {
 ?>
-		rewrite ^/(.*) '<?php echo $protocol; ?><?php echo $webmailremote; ?>/$1' permanent;
+		set $var_rootdir '<?=$webmaildocroot;?>';
 <?php
-			  			} else {
-?>
-		set $var_rootdir '<?php echo $webmaildocroot; ?>';
-<?php
-			  			}
-  				  	}
+					}
+				}
 ?>
 	}
 <?php
-				}
-			} else {
+			}
+		} else {
 ?>
 
-	set $var_rootdir '<?php echo $rootpath; ?>';
+	set $var_rootdir '<?=$webdocroot;?>';
 <?php
-			}
 		}
 ?>
 
 	root $var_rootdir;
 <?php
+		if ($enablecgi) {
+?>
+
+	include '<?=$cgi_conf;?>';
+<?php
+		}
+
 		if ($redirectionlocal) {
 			foreach ($redirectionlocal as $rl) {
 ?>
 
-	location ~ ^<?php echo $rl[0]; ?>/(.*)$ {
-		alias <?php echo str_replace("//", "/", $rl[1]); ?>/$1;
+	location ~ ^<?=$rl[0];?>/(.*)$ {
+		alias <?=str_replace("//", "/", $rl[1]);?>/$1;
 	}
 <?php
 			}
@@ -491,67 +537,85 @@ server {
 					$rr[0] = '';
 				}
 
-			  	if ($rr[2] === 'both') {
+				if ($rr[2] === 'both') {
 ?>
 
-	rewrite ^<?php echo $rr[0]; ?>/(.*) '<?php echo $protocol; ?><?php echo $rr[1]; ?>/$1' permanent;
+	rewrite ^<?=$rr[0];?>/(.*) '<?=$protocol;?><?=$rr[1];?>/$1' permanent;
 <?php
 				} else {
 					$protocol2 = ($rr[2] === 'https') ? "https://" : "http://";
 ?>
 
-	rewrite ^<?php echo $rr[0]; ?>/(.*) '<?php echo $protocol2; ?><?php echo $rr[1]; ?>/$1' permanent;
+	rewrite ^<?=$rr[0];?>/(.*) '<?=$protocol2;?><?=$rr[1];?>/$1' permanent;
 <?php
 				}
 			}
 		}
 ?>
 
-	set $var_user '<?php echo $user; ?>';
-	set $var_fpmport '<?php echo $fpmport; ?>';
+	set $var_user '<?=$user;?>';
+	set $var_fpmport '<?=$fpmport;?>';
+	set $var_phpselected '<?=$phpselected;?>';
+
+	<?=$conn_timeout;?>
+
 <?php
 		if ($enablestats) {
+		// MR - bug for nginx where error if using 'include stats_log.conf' (use $var_domain)
 ?>
 
-	include '<?php echo $globalspath; ?>/stats.conf';
-<?php
-			if ($statsprotect) {
-?>
+	#include '<?=getLinkCustomfile($globalspath, "stats_log.conf");?>';
+	access_log /home/httpd/<?=$domainname;?>/stats/<?=$domainname;?>-custom_log main;
+	error_log /home/httpd/<?=$domainname;?>/stats/<?=$domainname;?>-error_log error;
 
-	include '<?php echo $globalspath; ?>/dirprotect_stats.conf';
+	rewrite ^/stats(/|) <?=$protocol;?>stats.$var_domain/ permanent;
 <?php
-			}
 		}
 
 		if ($nginxextratext) {
 ?>
 
 	# Extra Tags - begin
-	<?php echo $nginxextratext; ?>
+	<?=$nginxextratext;?>
 
 	# Extra Tags - end
-
-	set $var_fpmport '<?php echo $fpmport; ?>';
-
 <?php
 		}
 
-		if ($enablephp) {
-			if ((!$reverseproxy) && (file_exists("{$globalspath}/{$domainname}.conf"))) {
+		if ((!$reverseproxy) && (file_exists("{$globalspath}/{$domainname}.conf"))) {
+			if ($enablephp) {
 ?>
 
-	include '<?php echo $globalspath; ?>/<?php echo $domainname; ?>.conf';
+	include '<?=getLinkCustomfile($globalspath, "{$domainname}.conf");?>';
 <?php
-			} else {
-				if ($wildcards) {
+			}
+		} else {
+			if ($wildcards) {
+				if (($reverseproxy) && ($webselected === 'front-end')) {
+					if ($enablephp) {
 ?>
 
-	include '<?php echo $globalspath; ?>/switch_wildcards.conf';
+	include '<?=getLinkCustomfile($globalspath, "php-fpm_wildcards{$switches[$count]}.conf");?>';
 <?php
+					}
 				} else {
 ?>
 
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
+	include '<?=getLinkCustomfile($globalspath, "switch_wildcards.conf");?>';
+<?php
+				}
+			} else {
+				if (($reverseproxy) && ($webselected === 'front-end')) {
+					if ($enablephp) {
+?>
+
+	include '<?=getLinkCustomfile($globalspath, "php-fpm_standard{$switches[$count]}.conf");?>';
+<?php
+					}
+				} else {
+?>
+
+	include '<?=getLinkCustomfile($globalspath, "switch_standard.conf");?>';
 <?php
 				}
 			}
@@ -565,11 +629,11 @@ server {
 					$protectfile = str_replace('/', '_', $protectpath) . '_';
 ?>
 
-	set $var_protectpath     '<?php echo $protectpath; ?>';
-	set $var_protectauthname '<?php echo $protectauthname; ?>';
-	set $var_protectfile     '<?php echo $protectfile; ?>';
+	set $var_std_protectpath '<?=$protectpath;?>';
+	set $var_std_protectauthname '<?=$protectauthname;?>';
+	set $var_std_protectfile '<?=$protectfile;?>';
 
-	include '<?php echo $globalspath; ?>/dirprotect_standard.conf';
+	include '<?=getLinkCustomfile($globalspath, "dirprotect_standard.conf");?>';
 <?php
 				}
 			}
@@ -582,24 +646,41 @@ server {
 <?php
 			foreach ($blockips as &$bip) {
 ?>
-		deny   <?php echo $bip; ?>;
+		deny   <?=$bip;?>;
 <?php
 			}
 ?>
 		allow  all;
+			}
+<?php
 	}
+?>
+
+	set $var_kloxoportssl '<?=$kloxoportssl;?>';
+	set $var_kloxoportnonssl '<?=$kloxoportnonssl;?>';
+
+	include '<?=getLinkCustomfile($globalspath, "generic.conf");?>';
+<?php
+		if (intval($microcache_time) > 0) {
+?>
+
+	## for microcache
+	fastcgi_cache_valid 200 <?=$microcache_time;?>s;
+	fastcgi_cache_use_stale updating;
+	fastcgi_max_temp_file_size 10M;
+
+	proxy_cache_valid 200 <?=$microcache_time;?>s;
+	proxy_cache_use_stale updating;
+	proxy_max_temp_file_size 10M;
 <?php
 		}
 ?>
 
-	set $var_kloxoportssl '<?php echo $kloxoportssl; ?>';
-	set $var_kloxoportnonssl '<?php echo $kloxoportnonssl; ?>';
+<?=$static_files_expire_text;?>
 
-	include '<?php echo $globalspath; ?>/<?php echo $genericconf; ?>';
 }
 
 <?php
-
 		if ($domainredirect) {
 			foreach ($domainredirect as $domredir) {
 				$redirdomainname = $domredir['redirdomain'];
@@ -608,130 +689,160 @@ server {
 
 				if ($redirpath) {
 					if ($disabled) {
-			  		  $$redirfullpath = $disablepath;
+						$redirfullpath = $disablepath;
 					} else {
-			  		  $redirfullpath = str_replace('//', '/', $rootpath . '/' . $redirpath);
+						$redirfullpath = str_replace('//', '/', $webdocroot . '/' . $redirpath);
 					}
 ?>
 
-## web for redirect '<?php echo $redirdomainname; ?>'
+## web for redirect '<?=$redirdomainname;?>'
 server {
 	#disable_symlinks if_not_owner;
 
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
 <?php
-					if ($enablecgi) {
+				//	if ((!$reverseproxy) || ($webselected === 'front-end')) {
 ?>
 
-	## MR -- 'enable-cgi' not implementing yet
+	include '<?=$gzip_base_conf;?>';
 <?php
-					}
-
+				//	}
 ?>
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+<?=$general_header_text;?>
 <?php
 					if ($count !== 0) {
 						if ($enablessl) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
 							if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 							}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
 						}
 					}
 ?>
 
-	server_name <?php echo $redirdomainname; ?> www.<?php echo $redirdomainname; ?>;
+	server_name <?=$redirdomainname;?> www.<?=$redirdomainname;?>;
 
-	index <?php echo $indexorder; ?>;
+	include '<?=$acmechallenge_conf;?>';
 
-	set $var_domain '<?php echo $redirdomainname; ?>';
+	index <?=$indexorder;?>;
 
-	set $var_rootdir '<?php echo $redirfullpath; ?>';
+	set $var_domain '<?=$redirdomainname;?>';
+	set $var_rootdir '<?=$redirfullpath;?>';
 
 	root $var_rootdir;
+<?php
 
-	set $var_user '<?php echo $user; ?>';
-	set $var_fpmport '<?php echo $fpmport; ?>';
+					if ($enablecgi) {
+?>
 
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
+	include '<?=$cgi_conf;?>';
+<?php
+					}
+?>
+
+	set $var_user '<?=$user;?>';
+	set $var_fpmport '<?=$fpmport;?>';
+	set $var_phpselected '<?=$phpselected;?>';
+
+	<?=$conn_timeout;?>
+
+<?php
+
+					if (($reverseproxy) && ($webselected === 'front-end')) {
+?>
+
+	include '<?=getLinkCustomfile($globalspath, "php-fpm_standard{$switches[$count]}.conf");?>';
+<?php
+					} else {
+?>
+
+	include '<?=getLinkCustomfile($globalspath, "switch_standard.conf");?>';
+<?php
+					}
+?>
 }
 
 <?php
 				} else {
 					if ($disabled) {
-			  			$$redirfullpath = $disablepath;
+						$redirfullpath = $disablepath;
 					} else {
-			  			$redirfullpath = $rootpath;
+						$redirfullpath = $webdocroot;
 					}
 ?>
 
-## web for redirect '<?php echo $redirdomainname; ?>'
+## web for redirect '<?=$redirdomainname;?>'
 server {
 	#disable_symlinks if_not_owner;
 
+	include <?=getLinkCustomfile($globalspath, "{$listen}.conf");?>;
 <?php
-					if ($enablecgi) {
+	//	if ((!$reverseproxy) || ($webselected === 'front-end')) {
 ?>
 
-	## MR -- 'enable-cgi' not implementing yet
+	include '<?=$gzip_base_conf;?>';
 <?php
-					}
+	//	}
 ?>
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+<?=$general_header_text;?>
+
 <?php
 					if ($count !== 0) {
 						if ($enablessl) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
 							if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 							}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
 						}
 					}
 ?>
 
-	server_name <?php echo $redirdomainname; ?> www.<?php echo $redirdomainname; ?>;
+	server_name <?=$redirdomainname;?> www.<?=$redirdomainname;?>;
 
-	index <?php echo $indexorder; ?>;
+	include '<?=$acmechallenge_conf;?>';
 
-	set $var_domain '<?php echo $redirdomainname; ?>';
+	index <?=$indexorder;?>;
 
-	set $var_rootdir '<?php echo $redirfullpath; ?>';
+	set $var_domain '<?=$redirdomainname;?>';
+
+	set $var_rootdir '<?=$redirfullpath;?>';
 
 	root $var_rootdir;
+<?php
+					if ($enablecgi) {
+?>
 
-	if ($host != '<?php echo $domainname; ?>') {
-		rewrite ^/(.*) '<?php echo $protocol; ?><?php echo $domainname; ?>/$1';
+	include '<?=$cgi_conf;?>';
+<?php
+					}
+?>
+
+	if ($host != '<?=$domainname;?>') {
+		rewrite ^/(.*) '<?=$protocol;?><?=$domainname;?>/$1';
 	}
 }
 
@@ -745,156 +856,64 @@ server {
 				$parkdomainname = $dompark['parkdomain'];
 				$webmailmap = ($dompark['mailflag'] === 'on') ? true : false;
 
-				if ($disabled) {
+				if (($webmailremote) || ($webmailmap)) {
 ?>
 
-## webmail for parked '<?php echo $parkdomainname; ?>'
+## webmail for parked '<?=$parkdomainname;?>'
 server {
 	#disable_symlinks if_not_owner;
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
+
+	include '<?=$gzip_base_conf;?>';
+
+<?=$general_header_text;?>
+
 <?php
 					if ($count !== 0) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-			if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-			}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
-					}
-?>
+	include '<?=$ssl_base_conf;?>';
 
-	server_name webmail.<?php echo $parkdomainname; ?>;
-
-	index <?php echo $indexorder; ?>;
-
-	set $var_domain 'webmail.<?php echo $parkdomainname; ?>';
-
-	set $var_rootdir '<?php echo $disabledocroot; ?>';
-
-	root $var_rootdir;
-
-	set $var_user 'apache';
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
-<?php
-				} else {
-					if ($webmailremote) {
-?>
-
-## webmail for parked '<?php echo $parkdomainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
-			  		  if ($count !== 0) {
-?>
-
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
 						if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 						}
+					}
 ?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
+
+	server_name webmail.<?=$parkdomainname;?> mail.<?=$parkdomainname;?>;
+
+	include '<?=$acmechallenge_conf;?>';
 <?php
-			  		  }
+					if ($webmailremote) {
 ?>
 
-	server_name webmail.<?php echo $parkdomainname; ?>;
-
-	if ($host != '<?php echo $webmailremote; ?>') {
-		rewrite ^/(.*) '<?php echo $protocol; ?><?php echo $webmailremote; ?>/$1';
+	if ($host != '<?=$webmailremote;?>') {
+		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1';
 	}
-}
-
-<?php
-
-					} elseif ($webmailmap) {
-
-?>
-
-## webmail for parked '<?php echo $parkdomainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
-			  			if ($count !== 0) {
-?>
-
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-							}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
-			  			}
-?>
-
-	server_name webmail.<?php echo $parkdomainname; ?>;
-
-	index <?php echo $indexorder; ?>;
-
-	set $var_domain 'webmail.<?php echo $parkdomainname; ?>';
-
-	set $var_rootdir '<?php echo $webmaildocroot; ?>';
-
-	root $var_rootdir;
-
-	set $var_user 'apache';
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
-<?php
-
-					} else {
-?>
-
-## No mail map for parked '<?php echo $parkdomainname; ?>'
-
 <?php
 					}
+?>
+}
+
+<?php
+
+				} else {
+?>
+
+## No mail map for parked '<?=$parkdomainname;?>'
+
+<?php
 				}
+
 			}
 		}
 
@@ -903,153 +922,64 @@ server {
 				$redirdomainname = $domredir['redirdomain'];
 				$webmailmap = ($domredir['mailflag'] === 'on') ? true : false;
 
-				if ($disabled) {
+				if ($webmailremote) {
 ?>
 
-## webmail for redirect '<?php echo $redirdomainname; ?>'
+## webmail for redirect '<?=$redirdomainname;?>'
 server {
 	#disable_symlinks if_not_owner;
 
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
+	include '<?=getLinkCustomfile($globalspath, "{$listen}.conf");?>';
+
+	include '<?=$gzip_base_conf;?>';
+
+<?=$general_header_text;?>
+
 <?php
 					if ($count !== 0) {
 ?>
 
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
+	include '<?=$ssl_base_conf;?>';
+
+	ssl_certificate <?=$certname;?>.pem;
+	ssl_certificate_key <?=$certname;?>.key;
 <?php
 						if (file_exists("{$certname}.ca")) {
 ?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
+	ssl_trusted_certificate <?=$certname;?>.ca;
+
+<?=$https_header_text;?>
+
 <?php
 						}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
 					}
 ?>
 
-	server_name webmail.<?php echo $redirdomainname; ?>;
+	server_name webmail.<?=$redirdomainname;?> mail.<?=$redirdomainname;?>;
 
-	index <?php echo $indexorder; ?>;
-
-	set $var_domain 'webmail.<?php echo $redirdomainname; ?>';
-
-	set $var_rootdir '<?php echo $disabledocroot; ?>';
-
-	root $var_rootdir;
-
-	set $var_user 'apache';
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
+	include '<?=$acmechallenge_conf;?>';
 <?php
-				} else {
 					if ($webmailremote) {
 ?>
 
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
-			  			if ($count !== 0) {
-?>
-
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-							}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
-			  			}
-?>
-
-	server_name webmail.<?php echo $redirdomainname; ?>;
-
-	if ($host != '<?php echo $webmailremote; ?>') {
-		rewrite ^/(.*) '<?php echo $protocol; ?><?php echo $webmailremote; ?>/$1';
+	if ($host != '<?=$webmailremote;?>') {
+		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1';
 	}
-}
-
-<?php
-					} elseif ($webmailmap) {
-?>
-
-## webmail for redirect '<?php echo $redirdomainname; ?>'
-server {
-	#disable_symlinks if_not_owner;
-
-	include '<?php echo $globalspath; ?>/<?php echo $listen; ?>.conf';
-<?php
-			  			if ($count !== 0) {
-?>
-
-	ssl on;
-	ssl_certificate <?php echo $certname; ?>.pem;
-	ssl_certificate_key <?php echo $certname; ?>.key;
-<?php
-							if (file_exists("{$certname}.ca")) {
-?>
-	ssl_trusted_certificate <?php echo $certname; ?>.ca;
-<?php
-							}
-?>
-	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-	#ssl_ciphers HIGH:!aNULL:!MD5;
-	#ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
-	ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-	ssl_prefer_server_ciphers on;
-	ssl_session_cache builtin:1000 shared:SSL:10m;
-<?php
-			  			}
-?>
-
-	server_name webmail.<?php echo $redirdomainname; ?>;
-
-	index <?php echo $indexorder; ?>;
-
-	set $var_domain 'webmail.<?php echo $redirdomainname; ?>';
-
-	set $var_rootdir '<?php echo $webmaildocroot; ?>';
-
-	root $var_rootdir;
-
-	set $var_user 'apache';
-	set $var_fpmport '<?php echo $fpmportapache; ?>';
-
-	include '<?php echo $globalspath; ?>/switch_standard.conf';
-}
-
-<?php
-					} else {
-?>
-
-## No mail map for redirect '<?php echo $redirdomainname; ?>'
-
 <?php
 					}
+?>
+}
+
+<?php
+
+				} else {
+?>
+
+## No mail map for redirect '<?=$redirdomainname;?>'
+
+<?php
 				}
+
 			}
 		}
 
@@ -1058,4 +988,4 @@ server {
 }
 ?>
 
-### end - web of '<?php echo $domainname; ?>' - do not remove/modify this line
+### end - web of '<?=$domainname;?>' - do not remove/modify this line

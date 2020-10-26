@@ -1,10 +1,11 @@
 #!/bin/sh
 
 if [ "$(grep envID /proc/self/status)" == "" ] ; then
-	if [ "$(rpm -qa|grep kexec-tools)" == "" ] ; then
+	if [ "$(rpm -qa kexec-tools)" == "" ] ; then
 		yum install kexec-tools -y
 	fi
 
+	currentkernel=$(uname -r)
 	latestkernel=$(ls -t /boot/vmlinuz-* | sed "s/\/boot\/vmlinuz-//g" | head -n1)
 
 	if [ -f /boot/initrd-${latestkernel}.img ] ; then

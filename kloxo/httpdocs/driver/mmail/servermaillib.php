@@ -40,7 +40,9 @@ class ServerMail extends lxdb
 	static $__desc_smtp_instance = array("", "",  "max_smtp_instances");
 	static $__desc_smtp_relay = array("t", "",  "smtp_relay");
 
-	static $__desc_max_size = array("", "",  "max_mail_attachment_size(bytes)");
+	static $__desc_send_limit = array("", "",  "send_limit");
+
+	static $__desc_max_size = array("", "",  "max_mail_attachment_size");
 //	static $__desc_additional_smtp_port = array("", "",  "additional_smtp_port");
 	static $__desc_virus_scan_flag = array("f", "",  "enable_virus_scan");
 	static $__acdesc_update_update = array("", "",  "server_mail_settings");
@@ -57,6 +59,11 @@ class ServerMail extends lxdb
 //	static $__desc_dns_blacklists = array("", "",  "dns_blacklists");
 	static $__desc_dns_blacklists = array("t", "",  "dns_blacklists");
 	static $__desc_alt_smtp_sdyke_flag = array("f","","alt_smtp_sdyke");
+
+	static $__desc_default_dns_blacklists_flag = array("f", "",  "enable_default_dns_blacklists");
+
+	static $__desc_blacklist_headers = array("f", "",  "blacklist_headers");
+	static $__desc_default_blacklist_headers_flag = array("f", "",  "enable_default_blacklist_headers");
 
 	function createExtraVariables()
 	{
@@ -88,8 +95,37 @@ class ServerMail extends lxdb
 		$this->write();
 
 		if ($subaction === 'update') {
-			//
+			exec("sh /script/fixdomainkey");
 		}
+	}
+
+	function updatespamdyke($param) 
+	{
+		$path = "../file/template";
+
+		if ($param['default_dns_blacklists_flag'] === 'on') {
+			unlink ("{$path}/current.spamdyke_rbl.txt");
+			$param['dns_blacklists'] = file_get_contents("{$path}/spamdyke_rbl.txt");
+		} else {
+			$content = $param['dns_blacklists'];
+			$file = "{$path}/current.spamdyke_rbl.txt";
+
+			file_put_contents($file, $content);
+		}
+
+		if ($param['default_blacklist_headers_flag'] === 'on') {
+			unlink ("{$path}/current.spamdyke_blacklist_headers.txt");
+			$param['dns_blacklists'] = file_get_contents("{$path}/spamdyke_blacklist_headers.txt");
+		} else {
+			$content = $param['blacklist_headers'];
+			$file = "{$path}/current.spamdyke_blacklist_headers.txt";
+			file_put_contents($file, $content);
+		}
+
+		file_put_contents('/var/qmail/spamdyke/blacklist_headers', $content);
+		exec('chown qmaild:qmail /var/qmail/spamdyke/blacklist_headers');
+
+		return $param;
 	}
 
 	function updateform($subaction, $param)
@@ -102,6 +138,11 @@ class ServerMail extends lxdb
 
 			//	if (csa($this->getParentO()->osversion, " 5")) {
 					$vlist['domainkey_flag'] = null;
+
+					if (!$this->virus_scan_flag) {
+						$this->virus_scan_flag = 'off';
+					}
+
 					$vlist['virus_scan_flag'] = null;
 
 					if (!$this->max_size) {
@@ -123,10 +164,24 @@ class ServerMail extends lxdb
 			//	$vlist['alt_smtp_sdyke_flag'] = null;
 
 				if (!$this->smtp_relay) {
-					$vlist['smtp_relay'] = array("t", lfile_get_contents("/var/qmail/control/smtproutes"));
+					$this->smtp_relay = lfile_get_contents("/var/qmail/control/smtproutes");
 				}
 
-				$this->postUpdate($subaction);
+				$vlist['smtp_relay'] = null;
+
+				$sl_file = "/var/qmail/control/sendlimit";
+
+				if (!$this->send_limit) {
+					if (!file_exists($sl_file)) {
+						$this->send_limit = 3000;
+					} else {
+						$this->send_limit = lfile_get_contents($sl_file);
+					}
+				}
+
+				$vlist['send_limit'] = null;
+
+			//	$this->postUpdate($subaction);
 
 				break;
 			case "spamdyke":
@@ -139,7 +194,28 @@ class ServerMail extends lxdb
 				$vlist['reject_ip_in_cc_rdns_flag'] = null;
 				$vlist['reject_missing_sender_mx_flag'] = null;
 				$vlist['reject_unresolvable_rdns_flag'] = null;
-				$vlist['dns_blacklists'] = array("t", lfile_get_contents("/usr/local/lxlabs/kloxo/file/template/spamdyke_rbl.txt"));
+
+				$path = "../file/template";
+
+				if (file_exists("{$path}/current.spamdyke_rbl.txt")) {
+					$file = "{$path}/current.spamdyke_rbl.txt";
+				} else {
+					$file = "{$path}/spamdyke_rbl.txt";
+				}
+
+				$vlist['dns_blacklists'] = array("t", lfile_get_contents($file));
+
+				$vlist['default_dns_blacklists_flag'] = null;
+
+				if (file_exists("{$path}/current.spamdyke_blacklist_headers.txt")) {
+					$file = "{$path}/current.spamdyke_blacklist_headers.txt";
+				} else {
+					$file = "{$path}/spamdyke_blacklist_headers.txt";
+				}
+
+				$vlist['blacklist_headers'] = array("t", lfile_get_contents($file));
+
+				$vlist['default_blacklist_headers_flag'] = null;
 
 				break;
 		}

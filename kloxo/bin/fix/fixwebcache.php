@@ -18,30 +18,9 @@ log_cleanup("Fixing WebCache server config", $nolog);
 foreach($plist as $s) {
 	$conftpl = 'defaults';
 
-	$list = getAllWebCacheDriverList();
+	$list = getAllRealWebCacheDriverList();
 	$driver = $gbl->getSyncClass(null, $s->syncserver, 'webcache');;
-/*
-	if ($driver[0] === 'none') {
-		foreach ($driverlist as $k => $v) {
-			$srcinitpath = "/opt/configs/{$v}/etc/init.d";
-			$trgtinitpath = "/etc/rc.d/init.d";
 
-			if (file_exists("{$trgtinitpath}/{$v}")) {
-				exec("service {$v} stop; chkconfig {$v} off");
-				unlink("{$trgtinitpath}/{$v}");
-
-				if ($v === 'varnish') {
-					unlink("{$trgtinitpath}/{$v}log");
-					unlink("{$trgtinitpath}/{$v}ncsa");
-				}
-			}
-		}
-
-		log_cleanup("- No process because using 'NONE' driver for '{$s->syncserver}'", $nolog);
-
-		return;
-	}
-*/
 	$input['driverlist'] = $list;
 	$input['driver'] = $driver;
 

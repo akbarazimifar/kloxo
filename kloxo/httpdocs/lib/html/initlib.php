@@ -35,8 +35,8 @@ function create_mysql_db($type, $opt, $admin_pass)
 		$req->query("grant all on $dbname.* to '$pguser'@'localhost' identified by '$dbadminpass';");
 	}
 
-	lfile_put_contents("__path_admin_pass", $dbadminpass);
-	lxfile_generic_chown("__path_admin_pass", "lxlabs");
+	lfile_put_contents($sgbl->__path_admin_pass, $dbadminpass);
+	lxfile_generic_chown($sgbl->__path_admin_pass, "lxlabs");
 }
 
 function add_admin($pass)
@@ -60,7 +60,7 @@ function add_admin($pass)
 			$res['contacemail'] = 'admin@mratwork.com';
 		}
 
-		$res['password'] = crypt($pass);
+		$res['password'] = crypt($pass, '$1$'.randomString(8).'$');
 		$res['cttype'] = 'admin';
 		$res['cpstatus'] = 'on';
 
@@ -78,7 +78,9 @@ function add_admin($pass)
 	$notif = new Notification(null, null, $client->getClName());
 	$notif->initThisDef();
 	$notif->dbaction = 'add';
-	$notif->text_newaccountmessage = lfile_get_contents("__path_program_root/file/welcome.txt");
+//	$notif->text_newaccountmessage = lfile_get_contents("{$sgbl->__path_program_root}/file/welcome.txt");
+	// MR -- use .tpl model (php parse)
+	$notif->text_newaccountmessage = lfile_get_contents(getLinkCustomfile("{$sgbl->__path_program_root}/file", "welcome.txt.tpl"));
 	$notif->parent_clname = $client->getClName();
 	$notif->write();
 
@@ -125,7 +127,7 @@ function create_servername()
 
 	if (if_demo()) {
 		$pserver->realpass = 'admin';
-		$pserver->password = crypt("admin");
+		$pserver->password = crypt("admin", '$1$'.randomString(8).'$');
 		$pserver->cpstatus = 'on';
 	}
 
@@ -136,5 +138,3 @@ function create_servername()
 
 	return;
 }
-
-

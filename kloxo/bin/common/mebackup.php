@@ -8,27 +8,30 @@ function mebackup_main()
 {
 	global $gbl, $sgbl, $login, $ghtml; 
 
-	$progname = $sgbl->__var_program_name;
+//	$progname = $sgbl->__var_program_name;
+	$progname = 'kloxomr70';
 	$cprogname = ucfirst($progname);
 	initProgram('admin');
-	lxfile_mkdir("__path_program_home/selfbackup/self/__backup");
+	lxfile_mkdir("{$sgbl->__path_program_home}/selfbackup/self/__backup");
 
 	$backup = $login->getObject('general')->selfbackupparam_b;
 	$dbf = $sgbl->__var_dbf;
-	$pass = trim(lfile_get_contents("__path_program_root/etc/conf/$progname.pass"));
+	$pass = trim(lfile_get_contents("{$sgbl->__path_program_root}/etc/conf/kloxo.pass"));
 
 	$vd = createTempDir("/tmp", "mebackup");
-	$docf = "$vd/mebackup.dump";
 
-	// MR -- remove 'engine=' to make portable
-	system("sed -i 's/engine=\([a-zA-z0-9]*\) //gi' {$docf}");
+	$docf = "{$vd}/mebackup.dump";
 
 	// Issue #671 - Fixed backup-restore issue
-//	exec("mysqldump --add-drop-table -u $progname -p$pass $dbf > $docf");
-	system("mysqldump --add-drop-table -u $progname -p$pass $dbf > $docf");
+	exec("mysqldump --add-drop-table -u kloxo -p{$pass} {$dbf} > {$docf}");
 
-	$string = @ date('Y-M-d'). '-' . time(); 
-	$bfile = "$sgbl->__path_program_home/selfbackup/self/__backup/$progname-scheduled-masterselfbackup-$string.zip";
+	// MR -- remove 'engine=' to make portable
+	exec("sed -i" . " 's/engine=\([a-zA-z0-9]*\) //gi' " . $docf);
+
+//	$string = @ date('Y-M-d'). '-' . time(); 
+	$string = @ date('Y-m-d'). '-' . time(); 
+
+	$bfile = "{$sgbl->__path_program_home}/selfbackup/self/__backup/{$progname}-scheduled-masterselfbackup-{$string}.zip";
 	lxshell_zip($vd, $bfile, array("mebackup.dump"));
 	lxfile_tmp_rm_rec($vd);
 
@@ -38,8 +41,10 @@ function mebackup_main()
 		} catch (Exception $e) {
 			print("Sending warning to $login->contactemail ..\n");
 
-			lx_mail(null, $login->contactemail, "$cprogname Self Database Backup Upload Failed on " . date('Y-M-d') . " at " . date('H') ." Hours" , 
-				"$cprogname Backup upload Failed due to {$e->getMessage()}\n");  
+		//	lx_mail(null, $login->contactemail, "{$cprogname} Self Database Backup Upload Failed on " . date('Y-M-d') . " at " . date('H') ." Hours" , 
+		//		"{$cprogname} Backup upload Failed due to {$e->getMessage()}\n");  
+			lx_mail(null, $login->contactemail, "{$cprogname} Self Database Backup Upload Failed on " . date('Y-m-d') . " at " . date('H') ." Hours" , 
+				"{$cprogname} Backup upload Failed due to {$e->getMessage()}\n");
 		}
 	}
 	$backup->rm_last_number = 20;

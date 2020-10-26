@@ -80,8 +80,8 @@ class pservercore extends Lxclient
 	static $__desc_nname = array("n", "", "IP_or_hostname", "a=show");
 	static $__desc_username = array("", "", "user_name.");
 	static $__desc_rolelist = array("", "", "roles");
-	static $__desc_description = array("n", "", "verbose_description (to_identify)");
-	static $__desc_tmpdir = array("", "", "tmpdir_for_backup_(/tmp)");
+	static $__desc_description = array("n", "", "verbose_description");
+	static $__desc_tmpdir = array("", "", "tmpdir_for_backup");
 	static $__desc_timezone = array("n", "", "timezone");
 	static $__desc_ostype = array("e", "", "t:type_of_os");
 	static $__desc_ostype_v_fedora = array("", "", "fedora");
@@ -109,7 +109,6 @@ class pservercore extends Lxclient
 	static $__desc_loadavg = array("", "", "LoadAvg");
 	static $__desc_ps_password = array("", "", "password");
 	static $__desc_ddate = array("", "", "date");
-
 
 	static $__desc_retype_admin_p_f = array("", "", "retype_admin_or_server_password");
 	static $__desc_button_dbpassword_f = array("b", "", "", 'a=updateform&sa=dbpassword');
@@ -150,6 +149,7 @@ class pservercore extends Lxclient
 	static $__desc_llog_o = array('d', '', '', '');
 	static $__desc_sshconfig_o = array('d', '', '', '');
 
+	static $__desc_phpmodule_l = array("v", "", "virtual");
 
 	static $__acdesc_update_cron_mailto = array("", "", "cron_mail");
 	static $__acdesc_update_dbpassword = array("", "", "db_admin");
@@ -169,6 +169,16 @@ class pservercore extends Lxclient
 	static $__desc_pserver_o = array('d', '', '', '');
 
 	static $__desc_use_apache24 = array("f", "", "use_apache24");
+	static $__desc_use_apache24_message = array("", "", "use_apache24");
+
+	static $__desc_use_pagespeed = array("f", "", "use_pagespeed");
+
+	function __construct($masterserver, $readserver, $name)
+	{
+		global $gbl, $sgbl, $login, $ghtml;
+
+		parent::__construct($masterserver, $name, $name);
+	}
 
 	function syncToSystem()
 	{
@@ -316,13 +326,6 @@ class pservercore extends Lxclient
 		}
 
 		return array('nameserver' => $nameserver, 'networkgateway' => $networkgateway, 'ip' => $totallist, 'networknetmask' => $netmask);
-	}
-
-	function __construct($masterserver, $readserver, $name)
-	{
-		global $gbl, $sgbl, $login, $ghtml;
-
-		parent::__construct($masterserver, $name, $name);
 	}
 
 	function getShowInfo()
@@ -501,17 +504,22 @@ class pservercore extends Lxclient
 		// Rlist takes an array...
 		$rlist[] = array('memory_usage', "Total Mem:Memory Usage (MB)", $l['used_s_memory'], $l['priv_s_memory']);
 
-		$rlist[] = array('membuffers_usage', "Buffers:Memory Buffers Usage (MB)", $l['used_s_membuffers'] . ' MB', $l['priv_s_memory'] . ' MB');
-		$rlist[] = array('memcached_usage', "Cached:Memory Cached Usage (MB)", $l['used_s_memcached'] . ' MB', $l['priv_s_memory'] . ' MB');
+	//	$rlist[] = array('membuffers_usage', "Buffers:Memory Buffers Usage (MB)", $l['used_s_membuffers'] . ' MB', $l['priv_s_memory'] . ' MB');
+	//	$rlist[] = array('memcached_usage', "Cached:Memory Cached Usage (MB)", $l['used_s_memcached'] . ' MB', $l['priv_s_memory'] . ' MB');
+	//	$rlist[] = array('real_usage', "Real Mem:Real Usage (MB)", $l['used_s_realused'] . ' MB', $l['priv_s_memory'] . ' MB');
 
-		$rlist[] = array('real_usage', "Real Mem:Real Usage (MB)", $l['used_s_realused'] . ' MB', $l['priv_s_memory'] . ' MB');
+		$rlist[] = array('membuffers_usage', "Buffers:Memory Buffers Usage", getGBOrMB($l['used_s_membuffers']), getGBOrMB($l['priv_s_memory']));
+		$rlist[] = array('memcached_usage', "Cached:Memory Cached Usage", getGBOrMB($l['used_s_memcached']), getGBOrMB($l['priv_s_memory']));
+		$rlist[] = array('real_usage', "Real Mem:Real Usage", getGBOrMB($l['used_s_realused']), getGBOrMB($l['priv_s_memory']));
 
 		if (isset($l['used_s_swap'])) {
-			$rlist[] = array('swap_usage', "Swap:Swap Usage (MB)", $l['used_s_swap'], $l['priv_s_swap']);
+		//	$rlist[] = array('swap_usage', "Swap:Swap Usage (MB)", $l['used_s_swap'], $l['priv_s_swap']);
+			$rlist[] = array('swap_usage', "Swap:Swap Usage", $l['used_s_swap'], $l['priv_s_swap']);
 		}
 
 		if (isset($l['used_s_virtual'])) {
-			$rlist[] = array('Virtual Memory', "Virtual:Virtual Memory Usage (MB)", $l['used_s_virtual'], $l['priv_s_virtual']);
+		//	$rlist[] = array('Virtual Memory', "Virtual:Virtual Memory Usage (MB)", $l['used_s_virtual'], $l['priv_s_virtual']);
+			$rlist[] = array('Virtual Memory', "Virtual:Virtual Memory Usage", getGBOrMB($l['used_s_virtual']), getGBOrMB($l['priv_s_virtual']));
 		}
 
 		$rlist[] = array('Server Traffic', "Traffic:Server Traffic For Current Month", $this->used->server_traffic_usage, '-');
@@ -527,9 +535,9 @@ class pservercore extends Lxclient
 
 		$loadavg = sys_getloadavg();
 
-		$rlist[] = array('loadavg', "LoadAvg1:Load Average in 1 minutes", "{$loadavg['0']} %", '100 %');
-		$rlist[] = array('loadavg', "LoadAvg5:Load Average in 5 minutes", "{$loadavg['1']} %", '100 %');
-		$rlist[] = array('loadavg', "LoadAvg15:Load Average in 15 minutes", "{$loadavg['2']} %", '100 %');
+		$rlist[] = array('loadavg', "LoadAvg1:Load Average in 1 minutes", number_format($loadavg['0'], 2) . " %", '100 %');
+		$rlist[] = array('loadavg', "LoadAvg5:Load Average in 5 minutes", number_format($loadavg['1'], 2) . " %", '100 %');
+		$rlist[] = array('loadavg', "LoadAvg15:Load Average in 15 minutes", number_format($loadavg['2'], 2) . " %", '100 %');
 		
 
 		return $rlist;
@@ -643,7 +651,7 @@ class pservercore extends Lxclient
 		$param['nname'] = trim($param['nname']);
 		$param['syncserver'] = $param['nname'];
 		$param['realpass'] = $param['ps_password'];
-		$param['password'] = crypt($param['ps_password']);
+		$param['password'] = crypt($param['ps_password'], '$1$'.randomString(8).'$');
 
 		return $param;
 	}
@@ -769,8 +777,6 @@ class pservercore extends Lxclient
 	//	$this->getCPToggleUrl($alist);
 		$alist[] = "a=updateform&sa=showused";
 
-	//	$alist[] = "a=list&c=component";
-
 		$cnl = array('ipaddress', 'dbadmin');
 
 		foreach ($cnl as $cn) {
@@ -837,6 +843,7 @@ class pservercore extends Lxclient
 		rl_exec_get($this->__masterserver, $this->nname, array("pserver__linux", 'mysqlPasswordReset'), array($pass));
 		$ghtml->print_redirect_back_success("Success", "");
 
+		$p->was();
 	//	exit;
 	}
 
@@ -945,7 +952,7 @@ class pservercore extends Lxclient
 
 		foreach ((array)$list as $l) {
 		//	$mod = getreal("/module/") . "/$l";
-		//	include_once "$mod/lib/driver.inc";
+		//	include "$mod/lib/driver.inc";
 
 			$dlist = $driver[$os];
 
@@ -959,6 +966,7 @@ class pservercore extends Lxclient
 		if ($ob->dbaction === 'clean') {
 			$ob->dbaction = 'update';
 		}
+
 		$ob->parent_clname = $this->getClName();
 
 		$ob->write();
@@ -1097,6 +1105,10 @@ STRIN;
 		if (!$parent->isAdmin() && $this->clientname !== $parent->nname) {
 			throw new lxException($login->getThrow("no_permission"), '', $parent->nname);
 		}
+
+	//	if ($subaction === 'switchprogram') {
+	//		$param['imap4_driver'] = $param['pop3_driver'];
+	//	}
 
 		return $param;
 	}
@@ -1248,44 +1260,83 @@ STRIN;
 				$this->webcache_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('webcache'));
 				$this->dns_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('dns'));
 				$this->spam_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('spam'));
+				$this->pop3_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('pop3'));
+			//	$this->imap4_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('imap4'));
+				$this->smtp_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('smtp'));
 
 				if (!isset($this->web_driver)) {
 					$this->web_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'web');
 					$this->webcache_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'webcache');
 					$this->dns_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'dns');
 					$this->spam_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'spam');
+					$this->pop3_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'pop3');
+				//	$this->imap4_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'imap4');
+					$this->smtp_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'smtp');
 				}
+
+				$a['web'] = $this->web_driver;
+				$a['webcache'] = $this->webcache_driver;
+				$a['dns'] = $this->dns_driver;
+				$a['spam'] = $this->spam_driver;
+				$a['pop3'] = (isset($this->pop3_driver)) ? $this->pop3_driver : 'courier';
+				// MR -- use pop3 driver because as the same as for imap4
+			//	$a['imap4'] = (isset($this->pop3_driver)) ? $this->pop3_driver : 'courier';
+				$a['smtp'] = (isset($this->smtp_driver)) ? $this->smtp_driver : 'qmail';
+
+				$this->pop3_driver = $a['pop3'];
+			//	$this->imap4_driver = $a['pop3'];
+				$this->smtp_driver = $a['smtp'];
+
+				rl_exec_get('localhost', $this->syncserver, 'slave_save_db', array('driver', $a));
 
 				$this->was();
 
 				// MR -- always off because one-time process
-				$this->no_fix_config = 'off';
+			//	$this->no_fix_config = 'off';
 
+				include "../file/driver/rhel.inc";
 
-				$vlist['web_driver'] = array('s', array('none', 'apache', 'lighttpd', 'nginx', 
-					'hiawatha', 'openlitespeed', 'monkey',
-					'lighttpdproxy', 'nginxproxy', 'hiawathaproxy', 'openlitespeedproxy',
-					'monkeyproxy'));
+				$vlist['web_driver'] = array('s', $driver['web']);
 
 				// MR -- get httpd24u info
-				exec("cat '/usr/local/lxlabs/kloxo/etc/list/httpd.lst'|grep httpd24", $out);
+				exec("cat ../etc/list/httpd.lst|grep httpd24", $out);
 
-				if ($out[0] !== null) {
-					if (file_exists("/usr/local/lxlabs/kloxo/etc/flag/use_apache24.flg")) {
+				if (count($out) > 0) {
+					if (version_compare(getRpmVersionFromYum('httpd'), '2.4.0', '>')) {
+						exec("echo '' > ../etc/flag/use_apache24.flg");
 						$this->use_apache24 = 'on';
+						$vlist['use_apache24'] = array('h', 'on', 'off');
+						$vlist['use_apache24_message'] = array('M', array('on'));
 					} else {
-						$this->use_apache24 = 'off';
+						if (version_compare(getRpmVersionFromYum('httpd24u'), '2.4.0', '>')) {
+							exec("echo '' > ../etc/flag/use_apache24.flg");
+							$this->use_apache24 = 'on';
+							$vlist['use_apache24'] = array('f', 'on', 'off');
+						} else{
+							exec("'rm' -f ../etc/flag/use_apache24.flg");
+							$this->use_apache24 = 'off';
+							$vlist['use_apache24'] = array('h', 'on', 'off');
+							$vlist['use_apache24_message'] = array('M', array('off'));
+						}
 					}
-
-					$vlist['use_apache24'] = array('f', 'on', 'off');
 				}
 
-				$vlist['webcache_driver'] = array('s', array('none', 'squid', 'trafficserver', 'varnish'));
+				if (file_exists("../etc/flag/use_pagespeed.flg")) {
+					$this->use_pagespeed = 'on';
+				} else {
+					$this->use_pagespeed = 'off';
+				}
 
-			//	$vlist['dns_driver'] = array('s', array('none', 'bind', 'djbdns', 'maradns', 'nsd', 'pdns'));
-				$vlist['dns_driver'] = array('s', array('none', 'bind', 'djbdns', 'nsd', 'pdns', 'mydns', 'yadifa'));
+				$vlist['use_pagespeed'] = array('f', 'on', 'off');
 
-				$vlist['spam_driver'] = array('s', array('none', 'spamassassin', 'bogofilter'));
+				$vlist['webcache_driver'] = array('s', $driver['webcache']);
+
+				$vlist['dns_driver'] = array('s', $driver['dns']);
+
+				$vlist['spam_driver'] = array('s', $driver['spam']);
+
+				$vlist['pop3_driver'] = array('s', $driver['pop3']);
+				$vlist['smtp_driver'] = array('s', $driver['smtp']);
 
 				// MR -- no needed under Kloxo-MR 7.0 because fix 'defaults' level
 			//	$vlist['no_fix_config'] = array('f', 'on', 'off');

@@ -28,9 +28,11 @@
 	// MR -- this is IPs from 'ip addr' (current server IPs)
 	foreach ($serverips as $k => $v) {
 		// MR -- IPv6 still not work?
-	//	if (stripos($v, ':')) { continue; }
-
-		$text .= "    ip-address: $v@53\\n";
+		if (stripos($v, ':')) {
+			$text .= "    #ip-address: $v@53\\n";
+		} else {
+			$text .= "    ip-address: $v@53\\n";
+		}
 	}
 
 	$text .= "    ip-address: 127.0.0.1@53\\n";
@@ -42,4 +44,3 @@
 	// MR -- need without \\n in after {$end} 
 	exec("sed -i 's/^server:/server:\\n{$begin}\\n{$text}{$end}/g' {$file}2");
 	exec("mv -f {$file}2 {$file}");
-?>

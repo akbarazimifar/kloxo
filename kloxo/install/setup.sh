@@ -23,6 +23,12 @@
 # Version: 1.0 (2013-01-11 - by Mustafa Ramadhan <mustafa@bigraf.com>)
 #
 
+## MR -- prohibit to install to CentOS 5 (EOL since 31 Mar 2017)
+if [ "$(yum list|grep ^yum|awk '{print $3}'|grep '@')" == "" ] ; then
+	echo "*** No permit to install to CentOS 5 (because EOL since 31 Mar 2017)"
+	exit
+fi
+
 ppath="/usr/local/lxlabs/kloxo"
 
 if ! [ -d ${ppath}/log ] ; then
@@ -30,16 +36,19 @@ if ! [ -d ${ppath}/log ] ; then
 	mkdir -p ${ppath}/log
 fi
 
-'rm' -f /var/run/yum.pid
+if [ -e /var/run/yum.pid ] ; then
+	'rm' -f /var/run/yum.pid
+fi
 
 cd /
+
+yum clean all
 
 if rpm -qa|grep 'mratwork-' >/dev/null 2>&1 ; then
 	yum update mratwork* -y
 else
 	cd /tmp
-	wget https://github.com/mustafaramadhan/kloxo/raw/rpms/release/neutral/noarch/mratwork-release-0.0.1-1.noarch.rpm --no-check-certificate
-	rpm -ivh mratwork-release-0.0.1-1.noarch.rpm
+	rpm -Uvh https://github.com/mustafaramadhan/kloxo/raw/rpms/release/neutral/noarch/mratwork-release-0.0.1-1.noarch.rpm
 	yum update mratwork-* -y
 	
 	'rm' -rf /etc/yum.repos.d/kloxo-mr.repo
@@ -49,6 +58,9 @@ else
 
 	'rm' -rf /etc/yum.repos.d/epel*.repo
 fi
+
+## trouble with mysql55 for qmail-toaster
+sed -i 's/exclude\=mysql51/exclude\=mysql5/g' /etc/yum.repos.d/mratwork.repo
 
 cd /
 
@@ -149,10 +161,12 @@ cd /
 
 #yum clean all
 
-yum -y install wget zip unzip yum-utils yum-priorities yum-plugin-replace vim-minimal subversion curl
-yum remove -y bind* nsd* pdns* mydns* yadifa* maradns djbdns*  mysql* mariadb* MariaDB* php* \
-		httpd* mod_* nginx* lighttpd* varnish* squid* trafficserver \
-		*-toaster postfix exim libmhash
+yum -y install wget zip unzip yum-utils yum-priorities yum-plugin-replace \
+	vim-minimal subversion curl sudo expect --skip-broken
+
+yum remove -y bind* nsd* pdns* mydns* yadifa* maradns djbdns* mysql-* mariadb-* MariaDB-* php* \
+		httpd-* mod_* httpd24u* mod24u_* nginx* lighttpd* varnish* squid* trafficserver* \
+		*-toaster postfix* exim* opensmtpd* esmtp* libesmtp* libmhash*
 rpm -e pure-ftpd --noscripts
 userdel postfix
 rpm -e vpopmail-toaster --noscripts
@@ -161,14 +175,9 @@ if id -u postfix >/dev/null 2>&1 ; then
 	userdel postfix
 fi
 
-if [ "$(uname -m)" == "x86_64" ] ; then
-	mariarepo="mratwork-mariadb-64"
-else
-	mariarepo="mratwork-mariadb-32"
-fi
-
 #yum -y install mysql55 mysql55-server mysql55-libs
-yum -y install MariaDB-server MariaDB-shared --enablerepo=$mariarepo
+yum -y install MariaDB MariaDB-shared
+yum -y install mysqlclient* --exclude=*devel* --exclude=*debuginfo*
 if ! [ -d /var/lib/mysqltmp ] ; then
 	mkdir -p /var/lib/mysqltmp
 fi
@@ -179,26 +188,25 @@ chown mysql:mysql /var/lib/mysqltmp
 sh /script/disable-mysql-aio
 sh /script/set-mysql-default
 
-yum -y install php54 php54-mysqlnd
+if [ "$(yum list|grep ^'php56u')" != "" ] ; then
+	phpused="php56"
+#	yum -y install ${phpused}u-cli ${phpused}u-mysqlnd ${phpused}u-fpm
+	sh /script/php-branch-installer ${phpused}u
+else
+	phpused="php54"
+#	yum -y install ${phpused}-cli ${phpused}-mysqlnd ${phpused}-fpm
+	sh /script/php-branch-installer ${phpused}u
+fi
 
+chkconfig php-fpm on >/dev/null 2>&1
+	
 if [ "$(uname -m)" == "x86_64" ] ; then
 	ln -sf /usr/lib64/php /usr/lib/php
 fi
 
-if [ "$1" == "--with-php52s" ] || [ "$2" == "--with-php52s" ] || [ "$3" == "--with-php52s" ] \
-		|| [ "$1" == "-2s" ] || [ "$2" == "-2s" ] || [ "$3" == "-2s" ] ; then
-	with_php52s="yes"
-
-	mkdir -p /opt/php52s/custom
-	sh /script/phpm-installer php52s
-	sh /script/fixlxphpexe php52s
-else
-	with_php52s="no"
-
-	mkdir -p /opt/php54s/custom
-	sh /script/phpm-installer php54s
-	sh /script/fixlxphpexe php54s
-fi
+mkdir -p /opt/${phpused}s/custom
+sh /script/phpm-installer ${phpused}s -y
+sh /script/fixlxphpexe ${phpused}s
 
 cd /
 
@@ -206,30 +214,32 @@ export PATH=/usr/bin:/usr/sbin:/sbin:$PATH
 
 cd ${ppath}/install
 
-/usr/bin/lxphp.exe installer.php --install-type=$APP_TYPE --install-from=setup $*
+#if [ ! -f ${ppath}/install/step2.inc ] ; then
+#	/usr/bin/lxphp.exe installer.php --install-type=$APP_TYPE $*
+#else
+	installtype=$APP_TYPE
+	installstep='1'
+
+	source ${ppath}/install/step2.inc
+#fi
 
 ## set skin to simplicity
 sh /script/skin-set-for-all >/dev/null 2>&1
 
 sh /script/set-hosts >/dev/null 2>&1
-sh /script/set-fs >/dev/null 2>&1
 
 echo
-if [ "${with_php52s}" != "no" ] ; then
-	echo "... Wait until finished (switch to php54s and restart services) ..."
-	sh /script/phpm-installer php54s -y >/dev/null 2>&1
-else
-	echo "... Wait until finished (restart services) ..."
-fi
+echo "... Wait until finished (restart services) ..."
 
 ## fix driver - always set default
 sh /script/setdriver --server=localhost --class=web --driver=apache >/dev/null 2>&1
+chkconfig httpd on >/dev/null 2>&1
 sh /script/setdriver --server=localhost --class=webcache --driver=none >/dev/null 2>&1
 sh /script/setdriver --server=localhost --class=dns --driver=bind >/dev/null 2>&1
 sh /script/setdriver --server=localhost --class=spam --driver=bogofilter >/dev/null 2>&1
 
 ## use php-cgi by default
-sh /script/set-kloxo-php cgi >/dev/null 2>&1
+sh /script/set-kloxo-php >/dev/null 2>&1
 
 sh /script/restart-all --force >/dev/null 2>&1
 

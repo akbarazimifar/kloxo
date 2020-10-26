@@ -24,9 +24,20 @@ RETVAL=0
 prog="php-fpm"
 pidfile=${PIDFILE-/var/run/php-fpm/php-fpm.pid}
 lockfile=${LOCKFILE-/var/lock/subsys/php-fpm}
+STOP_TIMEOUT=${STOP_TIMEOUT-30}
 
 start () {
     echo -n $"Starting $prog: "
+    if [ "$prog" == "php-fpm" ] ; then
+        ## MR -- bug fix for handle 'php branch'
+        export PHP_INI_SCAN_DIR="/etc/php.d"
+    fi
+    for sockfile in $(dir -l /opt/configs/php-fpm/sock/php-*.sock 2>/dev/null|awk '{print $9}') ; do
+        if [ "${sockfile}" != "" ] ; then
+            echo "- Delete $sockfile"
+            unlink $sockfile >/dev/null 2>&1
+        fi
+    done
     daemon --pidfile ${pidfile} $prog --daemonize
     RETVAL=$?
     echo
@@ -34,7 +45,7 @@ start () {
 }
 stop () {
     echo -n $"Stopping $prog: "
-    killproc -p ${pidfile} $prog
+    killproc -p ${pidfile} -d ${STOP_TIMEOUT} $prog
     RETVAL=$?
     echo
     if [ $RETVAL -eq 0 ] ; then
@@ -43,13 +54,13 @@ stop () {
 }
 
 restart () {
-        stop
-        start
+    stop
+    start
 }
 
 reload () {
     echo -n $"Reloading $prog: "
-    killproc -p ${pidfile} $prog -USR2
+    killproc -p ${pidfile} -d ${STOP_TIMEOUT} $prog -USR2
     RETVAL=$?
     echo
 }

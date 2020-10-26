@@ -14,7 +14,8 @@ class pserver__Linux extends lxDriverClass
 
 	static function mysqlPasswordReset($pass)
 	{
-		lxshell_return("lxphp.exe", "../bin/common/misc/reset-mysql-root-password.php", $pass);
+	//	lxshell_return("lxphp.exe", "../bin/common/misc/reset-mysql-root-password.php", $pass);
+		exec("sh /script/reset-mysql-root-password {$pass}");
 	}
 
 	function setTimeZone()
@@ -173,7 +174,12 @@ class pserver__Linux extends lxDriverClass
 
 		// This is a hack to show the actual non-kloxo memory on openvz.
 		if ($sgbl->isKloxo()) {
-			if (lxfile_exists("/proc/user_beancounters")) {
+		//	if (lxfile_exists("/proc/user_beancounters")) {
+		//	if ((!lxfile_exists("/boot/grub/grub.conf")) && (!lxfile_exists("/boot/grub2/grub.conf"))) {
+		//	exec("grep envID /proc/self/status", $out);
+			exec("sh /script/virtual-info -t", $out);
+
+			if ($out[0] == 'container') {
 				$ret['used_s_memory'] -= 20;
 			}
 		}
@@ -252,6 +258,7 @@ class pserver__Linux extends lxDriverClass
 
 			lxshell_return("chkconfig", "xendomains", "on");
 			//lxshell_return("service", "xendomains", "restart");
+
 			$imdriver = $this->main->__var_xenimportdriver;
 			$importdriverfile = "{$sgbl->__path_program_htmlbase}/lib/xenimport/xenimport__$imdriver.php";
 			

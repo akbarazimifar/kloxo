@@ -17,7 +17,8 @@ $list = $login->getList('client');
 
 log_cleanup("Fixing Web server config", $nolog);
 
-web__apache::setInstallPhpfpm();
+// MR -- disabled because include inside fixphp
+// web__apache::setInstallPhpfpm();
 
 $clist = array();
 $slist = array();
@@ -25,8 +26,9 @@ $slist = array();
 $counter = 0;
 
 foreach($list as $c) {
-	$driverapp = $gbl->getSyncClass(null, $c->syncserver, 'web');
 /*
+	$driverapp = $gbl->getSyncClass(null, $c->syncserver, 'web');
+
 	if ($driverapp === 'none') {
 		log_cleanup("- No process because using 'NONE' driver for '{$c->syncserver}'", $nolog);
 
@@ -54,11 +56,12 @@ foreach($list as $c) {
 			$da = explode(",", $domain);
 			if (!in_array($web->nname, $da)) { continue; }
 		}
-
 		if (!in_array($web->syncserver, $slist)) {
 			if (($target === 'all') || ($target === 'defaults')) {
-				log_cleanup("- 'defaults' pages at '{$web->syncserver}'", $nolog);
-				$web->setUpdateSubaction('static_config_update');
+				if ($counter === 0) {
+					log_cleanup("- 'defaults' pages at '{$web->syncserver}'", $nolog);
+					$web->setUpdateSubaction('static_config_update');
+				}
 			}
 
 			if (($target === 'all') || ($target === 'domains')) {
@@ -70,15 +73,6 @@ foreach($list as $c) {
 				}
 			}
 
-			if (strpos($driverapp, 'lighttpd') !== false) {
-				// MR - also fix for lighttpd
-				if (!file_exists("/var/log/lighttpd")) {
-					mkdir("/var/log/lighttpd",0777);
-				}
-
-				chmod("/var/log/lighttpd", 0777);
-			}
-
 			$slist[] = $web->syncserver;
 			array_unique($slist);
 		}
@@ -86,14 +80,14 @@ foreach($list as $c) {
 		if (($target === 'all') || ($target === 'domains')) {
 			log_cleanup("- '{$web->nname}' ('{$c->nname}') at '{$web->syncserver}'", $nolog);
 			$web->setUpdateSubaction('full_update');
-
 			// MR -- disabled because include inside fixphp
 		//	log_cleanup("- '.htaccess' for '{$web->nname}' ('{$c->nname}') at '{$web->syncserver}'", $nolog);
 		//	$web->setUpdateSubaction('htaccess_update');
 		}
 
 		$web->was();
+
+		$counter++;
 	}
 }
-
 

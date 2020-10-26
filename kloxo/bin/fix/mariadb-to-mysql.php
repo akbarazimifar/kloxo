@@ -37,7 +37,7 @@ if (strpos($mysqlbranch, "mysql") !== false) {
 		}
 
 		echo "- Install MySQL\n";
-		system("yum install mysql55 mysql55-server --disablerepo=mratwork-mariadb* -y");
+		system("yum install mysql55 mysql55-server --disablerepo=*mariadb* -y");
 
 		if (file_exists("/etc/my.cnf.d/my.cnf")) {
 			system("'cp' -f /etc/my.cnf.d/my.cnf /etc/my.cnf");
@@ -46,7 +46,7 @@ if (strpos($mysqlbranch, "mysql") !== false) {
 		}
 
 		echo "- Restart MySQL\n";
-		system("chkconfig mysqld on");
+		system("chkconfig mysqld on >/dev/null 2>&1");
 		system("service mysqld restart");
 //	}
 }

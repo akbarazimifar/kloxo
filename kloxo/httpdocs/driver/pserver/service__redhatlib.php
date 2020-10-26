@@ -10,14 +10,13 @@ class Service__Redhat extends lxDriverClass
 
 	function dbactionAdd()
 	{
-		lxshell_return("chkconfig", $this->main->servicename, 'on');
+	//	lxshell_return("chkconfig", $this->main->servicename, 'on');
+		exec("chkconfig {$this->main->servicename} on >/dev/null 2>&1");
 	}
 
 	function startStopService($act)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
-
-	//	exec_with_all_closed("{$sgbl->__path_real_etc_root}/init.d/{$this->main->servicename} $act");
 
 		$cmd = $this->main->servicename;
 
@@ -29,7 +28,7 @@ class Service__Redhat extends lxDriverClass
 		}
 
 		foreach ($cmdlist as $key => $cmd) {
-			exec_with_all_closed("{$sgbl->__path_real_etc_root}/init.d/{$cmd} $act");
+			exec_with_all_closed("service {$cmd} {$act}");
 		}
 	}
 
@@ -54,9 +53,11 @@ class Service__Redhat extends lxDriverClass
 			case "toggle_boot_state":
 				if ($this->main->servicename !== 'hiawatha') {
 					if ($this->main->isOn('boot_state')) {
-						lxshell_return("chkconfig", $this->main->servicename, 'on');
+					//	lxshell_return("chkconfig", $this->main->servicename, 'on');
+						exec("chkconfig {$this->main->servicename} on >/dev/null 2>&1");
 					} else {
-						lxshell_return("chkconfig", $this->main->servicename, 'off');
+					//	lxshell_return("chkconfig", $this->main->servicename, 'off');
+						exec("chkconfig {$this->main->servicename} off >/dev/null 2>&1");
 					}
 				}
 				
@@ -83,41 +84,71 @@ class Service__Redhat extends lxDriverClass
 		return false;
 	}
 
+	static function checkServiceOn($service)
+	{
+		exec("ps --no-headers -o comm 1", $servicetype);
+
+		if ($servicetype[0] === 'systemd') {
+			exec("systemctl list-unit-files --type=service|grep ^'{$service}'|grep 'enabled'", $systemd);
+
+			if (count($systemd) > 0) {
+				return true;
+			}
+		}
+
+		exec("chkconfig --list 2>/dev/null|grep ^'{$service}'|grep ':on'", $sysv);
+
+		if (count($sysv) > 0) {
+			return true;
+		}
+
+		return false;
+	}
+
 	static function getServiceDetails($list)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$ps = lxshell_output("ps", "ax");
-		$run = Service__linux::getRunLevel();
-		$rclist = lscandir_without_dot("{$sgbl->__path_real_etc_root}/rc$run.d/");
-		
+	//	$run = Service__linux::getRunLevel();
+	//	$rclist = lscandir_without_dot("{$sgbl->__path_real_etc_root}/rc$run.d/");
+
 		foreach ($list as &$__l) {
 			$__l['install_state'] = 'dull';
 			$__l['state'] = 'off';
 			$__l['boot_state'] = 'off';
 			
-			if (lxfile_exists("{$sgbl->__path_real_etc_root}/init.d/{$__l['servicename']}")) {
+			if (isServiceExists($__l['servicename'])) {
 				$__l['install_state'] = 'on';
 			} else {
 				continue;
 			}
-			if (self::checkServiceInRc($rclist, $__l['servicename'])) {
+		//	if (self::checkServiceInRc($rclist, $__l['servicename'])) {
+			if (self::checkServiceOn($__l['servicename'])) {
 				$__l['boot_state'] = 'on';
 			}
+
 			if ($__l['grepstring']) {
 				if (preg_match("/[\/ ]{$__l['grepstring']}/i", $ps)) {
 					$__l['state'] = 'on';
 				}
-			} else {
-				$ret = lxshell_return("/etc/init.d/{$__l['servicename']}", "status");
-				
-				if ($ret) {
-					$__l['state'] = 'off';
-				} else {
-					$__l['state'] = 'on';
-				}
 			}
 
+			// MR -- recheck with 'service status' if state is off
+			if ($__l['state'] === 'off') {
+				$out = null;
+			//	$ret = lxshell_return("/etc/init.d/{$__l['servicename']}", "status");
+			//	exec("/etc/init.d/{$__l['servicename']} status|grep '(pid '", $out);
+			//	exec("/etc/init.d/{$__l['servicename']} status|grep 'running'", $out);
+				exec("pgrep ^{$__l['servicename']}", $out);
+
+			//	if ($ret) {
+				if (count($out) > 0) {
+					$__l['state'] = 'on';
+				} else {
+					$__l['state'] = 'off';
+				}
+			}
 		}
 		
 		return $list;

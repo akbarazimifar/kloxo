@@ -4,48 +4,76 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
 	echo "  format: sh $0 [--force|-y]"
 	echo " ------------------------------------------------------------------------------"
 	echo "  --force or -y"
-	echo "      - running '/etc/init.d/httpd restart' instead custom 'restart' declare"
-	echo "        inside /etc/local/lxlabs/kloxo/etc/process"
+	echo "      - example: running 'service httpd restart' instead custom 'restart'"
+	echo "        declare inside /etc/local/lxlabs/kloxo/etc/process"
 	echo "      - use it if trouble restart without '--force' or '-y'"
 	echo ""
 	exit
 else
+	ppath="/usr/local/lxlabs/kloxo/etc/process"
+	fpath="/usr/local/lxlabs/kloxo/etc/flag"
+	
 	ASQMAIL=""
 
+	stype=$(ps --no-headers -o comm 1)
+
 	for item in ${list[*]} ; do
-		if [ -f /etc/init.d/${item} ] ; then
-			for num in 0 1 2 3 4 5 6 ; do
-				if $(dir /etc/rc.d/rc${num}.d|grep -E 'S[0-9]{2}'${item} >/dev/null 2>&1) ; then
+		svc_ok='no'
+		if [ "$(chkconfig --list 2>/dev/null|grep ^${item})" != "" ] ; then
+			svc_ok='yes'
+		fi
+		#if [ "$(command -v systemctl)" != "" ] ; then
+		#if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
+		if [ "${stype}" == "systemd" ] ; then
+			if [ "$(systemctl list-unit-files --type=service|grep ^${item})" != "" ] ; then
+
+				svc_ok='yes'
+			fi
+		fi
+
+		if [ "${svc_ok}" == 'yes' ] ; then
+			svc_on='no'
+			if [ "$(chkconfig --list 2>/dev/null|grep ^${item}|grep ':on')" != "" ] ; then
+				svc_on='yes'
+			fi
+			#if [ "$(command -v systemctl)" != "" ] ; then
+			#if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
+			if [ "${stype}" == "systemd" ] ; then
+				if [ "$(systemctl list-unit-files --type=service|grep ^${item}|grep 'enabled')" != "" ] ; then
+					svc_on='yes'
+				fi
+			fi
+
+			if [ "${svc_on}" == 'yes' ] ; then
 					echo ""
 					if [ "$1" == "--force" ] || [ "$1" == "-y" ] ; then
 						if [ "${item}" == "qmail" ] ; then
 							ASQMAIL="qmail"
 							sh /script/restart-mail
-						elif [ "${item}" == "php-fpm" ] ; then
-							/etc/init.d/${item} stop
-							if [ "$(ps aux|grep 'kloxo-php-fpm.conf'|grep -v grep)" == "" ] ; then
-								echo "pkill to make sure stopped"
-								pkill -9 php-fpm
-							fi
-							/etc/init.d/${item} start
+						elif [ "${item}" == "nsd" ] ; then
+							service ${item} restart
+						elif [ "${item}" == "spawn-fcgi" ] ; then
+							'rm' -f /tmp/fcgiwrap.sock
+							service ${item} restart
 						else
-							/etc/init.d/${item} restart
+							service ${item} restart
 						fi
 					else
-						if [ -f /usr/local/lxlabs/kloxo/etc/process/custom.${item} ] ; then
-							sh /usr/local/lxlabs/kloxo/etc/process/custom.${item}
-						elif [ -f /usr/local/lxlabs/kloxo/etc/process/${item} ] ; then
-							sh /usr/local/lxlabs/kloxo/etc/process/${item}
+						if [ -f ${ppath}/custom.${item} ] ; then
+							sh ${ppath}/custom.${item}
+						elif [ -f ${ppath}/${item} ] ; then
+							sh ${ppath}/${item}
 						else
-							/etc/init.d/${item} restart
+							service ${item} restart
 						fi
 					fi
 
 					echo "-------------------------------------------------------------------"
-
-					break
+			else
+				if [ "$(pgrep ^${item})" != "" ] ; then
+					service ${item} stop
 				fi
-			done
+			fi
 		fi
 	done
 
